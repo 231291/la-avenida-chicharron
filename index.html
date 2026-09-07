@@ -383,6 +383,24 @@ function money(n) { return "RD$" + (n||0).toLocaleString("es-DO"); }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 function normalizarNombre(s){ return String(s||'').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
 
+// Todo lo que viene de la base de datos (pedidos, menú, cuentas, repartidores)
+// se trata como texto no confiable al insertarlo en el HTML: cualquiera con
+// la anon key podría escribir ahí directo (sin pasar por esta app), así que
+// nunca se confía en que ya venga "limpio".
+function esc(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+// Para valores que van dentro de un onclick="...('valor')" — escapa tanto
+// para que no rompa el string de JS como para que no rompa el atributo HTML.
+function escJs(s){
+  return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+// Solo deja pasar links http/https reales — evita "javascript:" y similares
+// en atributos href que vengan de datos (ej. comprobanteUrl).
+function urlSegura(u){
+  try{ const p = new URL(u, location.href); return (p.protocol==='http:'||p.protocol==='https:') ? p.href : '#'; }catch(e){ return '#'; }
+}
+
 // Sugiere una etiqueta según palabras clave en el nombre del plato — el
 // dueño la puede editar o borrar, es solo un punto de partida.
 function sugerirEtiqueta(nombre){
@@ -785,13 +803,13 @@ function renderMenu() {
     card.className = "item-card" + (q > 0 ? " has-qty" : "");
     card.id = "card-" + item.id;
     card.innerHTML = `
-      <div class="item-emoji">${item.emoji}</div>
+      <div class="item-emoji">${esc(item.emoji)}</div>
       <div class="item-info">
-        <div class="item-name">${item.nombre}</div>
-        <div class="item-tag">${item.tag}</div>
-        <div class="item-price">${money(item.precio)} <span>${item.unidad}</span></div>
+        <div class="item-name">${esc(item.nombre)}</div>
+        <div class="item-tag">${esc(item.tag)}</div>
+        <div class="item-price">${money(item.precio)} <span>${esc(item.unidad)}</span></div>
       </div>
-      <div id="ctrl-${item.id}"></div>
+      <div id="ctrl-${esc(item.id)}"></div>
     `;
     list.appendChild(card);
     renderCtrl(item.id);
@@ -802,9 +820,9 @@ function renderCtrl(id) {
   const q = cart[id] || 0;
   const ctrl = document.getElementById("ctrl-" + id);
   if (q === 0) {
-    ctrl.innerHTML = `<button class="add-btn" onclick="addItem('${id}',1)">Añadir</button>`;
+    ctrl.innerHTML = `<button class="add-btn" onclick="addItem('${escJs(id)}',1)">Añadir</button>`;
   } else {
-    ctrl.innerHTML = `<div class="qty-box"><button onclick="addItem('${id}',-1)">−</button><span>${q}</span><button class="plus" onclick="addItem('${id}',1)">+</button></div>`;
+    ctrl.innerHTML = `<div class="qty-box"><button onclick="addItem('${escJs(id)}',-1)">−</button><span>${q}</span><button class="plus" onclick="addItem('${escJs(id)}',1)">+</button></div>`;
   }
 }
 function addItem(id, delta) {
@@ -835,7 +853,7 @@ function goToConfirm() {
   document.getElementById("cartBar").classList.remove("show");
   document.getElementById("cartItems").innerHTML = items.map(i => `
     <div class="cart-item-row">
-      <div class="cart-item-left"><span class="emoji">${i.emoji}</span><div><div class="cart-item-name">${i.nombre}</div><div class="cart-item-qty">x${i.q}</div></div></div>
+      <div class="cart-item-left"><span class="emoji">${esc(i.emoji)}</span><div><div class="cart-item-name">${esc(i.nombre)}</div><div class="cart-item-qty">x${i.q}</div></div></div>
       <span class="cart-item-price">${money(i.precio * i.q)}</span>
     </div>`).join("");
   document.getElementById("totalValue").textContent = money(total);
@@ -895,7 +913,7 @@ function setEntrega(val) {
 }
 function textoDatosTransferencia(){
   const cuentas = CUENTAS_TRANSFERENCIA.map(d =>
-    `🏦 <b>${d.banco}</b><br>${d.tipoCuenta} · Cuenta: <b>${d.numeroCuenta}</b><br>A nombre de: ${d.titular}`
+    `🏦 <b>${esc(d.banco)}</b><br>${esc(d.tipoCuenta)} · Cuenta: <b>${esc(d.numeroCuenta)}</b><br>A nombre de: ${esc(d.titular)}`
   ).join('<hr style="border:none;border-top:1px solid #2c241d;margin:10px 0;">');
   return `${cuentas}<br><br>Transfiere por el total del pedido a cualquiera de estas cuentas (la que uses tú) — puedes poner el número de confirmación abajo (opcional) para que sea más fácil verificarla.`;
 }
@@ -971,14 +989,14 @@ function renderTracking(data){
   el.innerHTML = otroPedidoBtn + mine.map(o=>{
     const vuelto = vueltoFor(o);
     return `<div class="order-card">
-      <div class="oid">Pedido #${o.shortId} · ${formatFecha(o.createdAt)}</div>
-      <span class="badge ${o.status}">${STATUS_LABEL[o.status]||o.status}</span>
+      <div class="oid">Pedido #${esc(o.shortId)} · ${esc(formatFecha(o.createdAt))}</div>
+      <span class="badge ${esc(o.status)}">${esc(STATUS_LABEL[o.status]||o.status)}</span>
       <h3>${money(o.total)}</h3>
-      ${o.items.map(i=>`<div class="item-line"><span>${i.emoji} ${i.nombre} x${i.cantidad}</span><span>${money(i.precio*i.cantidad)}</span></div>`).join('')}
+      ${o.items.map(i=>`<div class="item-line"><span>${esc(i.emoji)} ${esc(i.nombre)} x${Number(i.cantidad)||0}</span><span>${money(i.precio*i.cantidad)}</span></div>`).join('')}
       ${o.pagaCon?`<div class="m-cash">💵 Pagas con ${money(o.pagaCon)}${vuelto!==null?` — te llevamos ${money(vuelto)} de vuelto`:''}</div>`:''}
       ${o.payMethod==='transferencia' ? (o.pagoConfirmado ? `<div class="m-cash">🏦 Pago por transferencia confirmado ✅</div>` : `<div class="m-cash" style="color:#e8b23a;">🏦 Pago por transferencia — esperando confirmación del negocio</div>`) : ''}
       ${o.comprobanteUrl ? `<div class="m-cash">🧾 Comprobante enviado</div>` : ''}
-      ${o.rider?`<div style="font-size:11.5px;color:#8a7a67;margin-top:6px;">🛵 Repartidor: ${o.rider}</div>`:''}
+      ${o.rider?`<div style="font-size:11.5px;color:#8a7a67;margin-top:6px;">🛵 Repartidor: ${esc(o.rider)}</div>`:''}
     </div>`;
   }).join('');
 }
@@ -1055,13 +1073,13 @@ function renderOwnerRepartidores(data){
   const reps = data.repartidores || [];
   const listaHtml = reps.length===0 ? '<div class="empty">Aún no hay repartidores — agrega el primero abajo.</div>' : reps.map(r=>`
     <div class="order-card">
-      <input class="field-input" id="rep_nombre_${r.id}" value="${(r.nombre||'').replace(/"/g,'&quot;')}" placeholder="Nombre del repartidor">
-      <input class="field-input" id="rep_pin_${r.id}" value="${(r.pin||'').replace(/"/g,'&quot;')}" placeholder="PIN">
+      <input class="field-input" id="rep_nombre_${esc(r.id)}" value="${esc(r.nombre)}" placeholder="Nombre del repartidor">
+      <input class="field-input" id="rep_pin_${esc(r.id)}" value="${esc(r.pin)}" placeholder="PIN">
       <div style="display:flex;gap:8px;">
-        <button class="btn-block orange" style="flex:1;margin-top:0;" onclick="guardarRepartidor('${r.id}')">💾 Guardar</button>
-        <button class="btn-block" style="flex:1;margin-top:0;background:${r.activo===false?'#2a2119':'#3a2f26'};" onclick="alternarActivoRepartidor('${r.id}', ${r.activo!==false})">${r.activo===false?'👁️ Activar':'🙈 Desactivar'}</button>
+        <button class="btn-block orange" style="flex:1;margin-top:0;" onclick="guardarRepartidor('${escJs(r.id)}')">💾 Guardar</button>
+        <button class="btn-block" style="flex:1;margin-top:0;background:${r.activo===false?'#2a2119':'#3a2f26'};" onclick="alternarActivoRepartidor('${escJs(r.id)}', ${r.activo!==false})">${r.activo===false?'👁️ Activar':'🙈 Desactivar'}</button>
       </div>
-      <button class="btn-block wine" onclick="eliminarRepartidor('${r.id}','${(r.nombre||'').replace(/'/g,"\\'")}')">🗑️ Borrar</button>
+      <button class="btn-block wine" onclick="eliminarRepartidor('${escJs(r.id)}','${escJs(r.nombre)}')">🗑️ Borrar</button>
     </div>`).join('');
   el.innerHTML = tabs + `
     <p style="font-size:12px;color:#8a7a67;margin-bottom:14px;line-height:1.5;">Cada repartidor entra con su propio PIN — así sabes quién es quién. "Desactivar" bloquea su PIN sin borrar su historial de entregas.</p>
@@ -1080,12 +1098,12 @@ function renderOwnerBancos(data){
   const cuentas = data.cuentas || [];
   const listaHtml = cuentas.length===0 ? '<div class="empty">Aún no hay cuentas — agrega la primera abajo.</div>' : cuentas.map(c=>`
     <div class="order-card">
-      <input class="field-input" id="cta_banco_${c.id}" value="${(c.banco||'').replace(/"/g,'&quot;')}" placeholder="Nombre del banco">
-      <input class="field-input" id="cta_tipo_${c.id}" value="${(c.tipoCuenta||'').replace(/"/g,'&quot;')}" placeholder="Tipo de cuenta (ej: Ahorros)">
-      <input class="field-input" id="cta_numero_${c.id}" value="${(c.numeroCuenta||'').replace(/"/g,'&quot;')}" placeholder="Número de cuenta">
-      <input class="field-input" id="cta_titular_${c.id}" value="${(c.titular||'').replace(/"/g,'&quot;')}" placeholder="Nombre del titular">
-      <button class="btn-block orange" onclick="guardarCuenta('${c.id}')">💾 Guardar</button>
-      <button class="btn-block wine" onclick="eliminarCuenta('${c.id}','${(c.banco||'').replace(/'/g,"\\'")}')">🗑️ Borrar cuenta</button>
+      <input class="field-input" id="cta_banco_${esc(c.id)}" value="${esc(c.banco)}" placeholder="Nombre del banco">
+      <input class="field-input" id="cta_tipo_${esc(c.id)}" value="${esc(c.tipoCuenta)}" placeholder="Tipo de cuenta (ej: Ahorros)">
+      <input class="field-input" id="cta_numero_${esc(c.id)}" value="${esc(c.numeroCuenta)}" placeholder="Número de cuenta">
+      <input class="field-input" id="cta_titular_${esc(c.id)}" value="${esc(c.titular)}" placeholder="Nombre del titular">
+      <button class="btn-block orange" onclick="guardarCuenta('${escJs(c.id)}')">💾 Guardar</button>
+      <button class="btn-block wine" onclick="eliminarCuenta('${escJs(c.id)}','${escJs(c.banco)}')">🗑️ Borrar cuenta</button>
     </div>`).join('');
   el.innerHTML = tabs + `
     <p style="font-size:12px;color:#8a7a67;margin-bottom:14px;line-height:1.5;">Estas son las cuentas que se le muestran al cliente cuando elige pagar por transferencia. Pon aquí los datos reales del negocio.</p>
@@ -1116,19 +1134,19 @@ function renderOwnerMenu(data){
   const listaHtml = items.length===0 ? '<div class="empty">Aún no hay platos en esta categoría — agrega el primero abajo.</div>' : items.map(m=>`
     <div class="order-card">
       <div style="display:flex;gap:8px;margin-bottom:8px;">
-        <input class="field-input" style="width:52px;text-align:center;margin-bottom:0;" id="art_emoji_${m.id}" value="${m.emoji||''}">
-        <input class="field-input" style="flex:1;margin-bottom:0;" id="art_nombre_${m.id}" value="${(m.nombre||'').replace(/"/g,'&quot;')}" placeholder="Nombre">
+        <input class="field-input" style="width:52px;text-align:center;margin-bottom:0;" id="art_emoji_${esc(m.id)}" value="${esc(m.emoji)}">
+        <input class="field-input" style="flex:1;margin-bottom:0;" id="art_nombre_${esc(m.id)}" value="${esc(m.nombre)}" placeholder="Nombre">
       </div>
-      <input class="field-input" id="art_tag_${m.id}" value="${(m.tag||'').replace(/"/g,'&quot;')}" placeholder="Etiqueta (ej: El favorito)">
+      <input class="field-input" id="art_tag_${esc(m.id)}" value="${esc(m.tag)}" placeholder="Etiqueta (ej: El favorito)">
       <div style="display:flex;gap:8px;">
-        <input class="field-input" style="flex:1;" type="number" id="art_precio_${m.id}" value="${m.precio}" placeholder="Precio RD$">
-        <input class="field-input" style="flex:1;" id="art_unidad_${m.id}" value="${(m.unidad||'').replace(/"/g,'&quot;')}" placeholder="Unidad (ej: por libra)">
+        <input class="field-input" style="flex:1;" type="number" id="art_precio_${esc(m.id)}" value="${esc(m.precio)}" placeholder="Precio RD$">
+        <input class="field-input" style="flex:1;" id="art_unidad_${esc(m.id)}" value="${esc(m.unidad)}" placeholder="Unidad (ej: por libra)">
       </div>
       <div style="display:flex;gap:8px;">
-        <button class="btn-block orange" style="flex:1;margin-top:0;" onclick="guardarArticulo('${m.id}')">💾 Guardar</button>
-        <button class="btn-block" style="flex:1;margin-top:0;background:${m.activo===false?'#2a2119':'#3a2f26'};" onclick="alternarActivo('${m.id}', ${m.activo!==false})">${m.activo===false?'👁️ Mostrar':'🙈 Ocultar'}</button>
+        <button class="btn-block orange" style="flex:1;margin-top:0;" onclick="guardarArticulo('${escJs(m.id)}')">💾 Guardar</button>
+        <button class="btn-block" style="flex:1;margin-top:0;background:${m.activo===false?'#2a2119':'#3a2f26'};" onclick="alternarActivo('${escJs(m.id)}', ${m.activo!==false})">${m.activo===false?'👁️ Mostrar':'🙈 Ocultar'}</button>
       </div>
-      <button class="btn-block wine" onclick="eliminarArticulo('${m.id}','${(m.nombre||'').replace(/'/g,"\\'")}')">🗑️ Borrar del menú</button>
+      <button class="btn-block wine" onclick="eliminarArticulo('${escJs(m.id)}','${escJs(m.nombre)}')">🗑️ Borrar del menú</button>
     </div>`).join('');
   el.innerHTML = tabs + catTabs + `
     <p style="font-size:12px;color:#8a7a67;margin-bottom:14px;line-height:1.5;">Edita el nombre, precio o descripción de cada plato y dale "Guardar". "Ocultar" lo quita del menú del cliente sin borrar el historial de pedidos.</p>
@@ -1179,7 +1197,7 @@ function inicializarMapaGeneral(pedidosConUbicacion){
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OpenStreetMap', maxZoom:19 }).addTo(mapa);
     const puntos = pedidosConUbicacion.map(o=>{
       const marcador = L.marker([o.location.lat, o.location.lng]).addTo(mapa);
-      marcador.bindPopup(`<b>#${o.shortId} · ${o.custName}</b><br>${STATUS_LABEL[o.status]||o.status} · ${money(o.total)}`);
+      marcador.bindPopup(`<b>#${esc(o.shortId)} · ${esc(o.custName)}</b><br>${esc(STATUS_LABEL[o.status]||o.status)} · ${money(o.total)}`);
       return [o.location.lat, o.location.lng];
     });
     if(puntos.length===1){ mapa.setView(puntos[0], 15); }
@@ -1208,33 +1226,33 @@ function renderOwnerPedidos(data){
   el.innerHTML = tabs + mapaGeneralHtml + activos.map(o=>{
     let accion='';
     if(o.status==='recibido'){
-      accion = `<button class="btn-block orange" onclick="advance('${o.id}','')">Aceptar y preparar →</button>`;
+      accion = `<button class="btn-block orange" onclick="advance('${escJs(o.id)}','')">Aceptar y preparar →</button>`;
     } else if(o.status==='preparando'){
-      accion = `<button class="btn-block orange" onclick="advance('${o.id}','')">Marcar listo →</button>`;
+      accion = `<button class="btn-block orange" onclick="advance('${escJs(o.id)}','')">Marcar listo →</button>`;
     } else if(o.status==='listo' && o.deliveryType==='delivery'){
       const riderInputId = 'rider_'+o.id;
-      accion = `<div class="assign-row"><input class="field-input" style="margin-bottom:0;" type="text" id="${riderInputId}" placeholder="Nombre del motorista"><button class="btn-block orange" style="width:auto;margin-top:0;padding:10px 14px;" onclick="advance('${o.id}', document.getElementById('${riderInputId}').value.trim())">Asignar</button></div>`;
+      accion = `<div class="assign-row"><input class="field-input" style="margin-bottom:0;" type="text" id="${esc(riderInputId)}" placeholder="Nombre del motorista"><button class="btn-block orange" style="width:auto;margin-top:0;padding:10px 14px;" onclick="advance('${escJs(o.id)}', document.getElementById('${escJs(riderInputId)}').value.trim())">Asignar</button></div>`;
     } else if(o.status==='listo'){
-      accion = `<button class="btn-block orange" onclick="advance('${o.id}','')">Marcar entregado →</button>`;
+      accion = `<button class="btn-block orange" onclick="advance('${escJs(o.id)}','')">Marcar entregado →</button>`;
     } else if(o.status==='en_camino'){
-      accion = `<span class="badge en_camino">En camino con ${o.rider}</span>`;
+      accion = `<span class="badge en_camino">En camino con ${esc(o.rider)}</span>`;
     }
     const ultimoMsg = o.messages && o.messages.length ? o.messages[o.messages.length-1].text : waMsg(o,'recibido');
     return `<div class="order-card">
-      <div class="oid">#${o.shortId} · ${o.custName} · ${o.phone} · ${formatFecha(o.createdAt)}</div>
-      <span class="badge ${o.status}">${STATUS_LABEL[o.status]||o.status}</span>
-      <div style="font-size:11px;color:#6f6153;margin-bottom:6px;">${o.deliveryType==='delivery'?'🛵 Delivery — '+o.addr:'📍 Recoger en el negocio'}</div>
-      ${o.location ? `<div class="mini-map" id="mapa_${o.id}"></div><a class="btn-block" style="background:#3a2f26;margin-top:0;" href="https://www.google.com/maps?q=${o.location.lat},${o.location.lng}" target="_blank">🧭 Cómo llegar</a>` : ''}
-      ${o.items.map(i=>`<div class="item-line"><span>${i.emoji} ${i.nombre} x${i.cantidad}</span><span>${money(i.precio*i.cantidad)}</span></div>`).join('')}
+      <div class="oid">#${esc(o.shortId)} · ${esc(o.custName)} · ${esc(o.phone)} · ${esc(formatFecha(o.createdAt))}</div>
+      <span class="badge ${esc(o.status)}">${esc(STATUS_LABEL[o.status]||o.status)}</span>
+      <div style="font-size:11px;color:#6f6153;margin-bottom:6px;">${o.deliveryType==='delivery'?'🛵 Delivery — '+esc(o.addr):'📍 Recoger en el negocio'}</div>
+      ${o.location ? `<div class="mini-map" id="mapa_${esc(o.id)}"></div><a class="btn-block" style="background:#3a2f26;margin-top:0;" href="https://www.google.com/maps?q=${Number(o.location.lat)},${Number(o.location.lng)}" target="_blank">🧭 Cómo llegar</a>` : ''}
+      ${o.items.map(i=>`<div class="item-line"><span>${esc(i.emoji)} ${esc(i.nombre)} x${Number(i.cantidad)||0}</span><span>${money(i.precio*i.cantidad)}</span></div>`).join('')}
       <div style="font-weight:700;margin:8px 0 0;">Total: ${money(o.total)}</div>
       ${o.pagaCon?`<div class="m-cash">💵 Paga con ${money(o.pagaCon)} → llevar vuelto ${money(vueltoFor(o))}</div>`:''}
       ${o.payMethod==='transferencia' ? (o.pagoConfirmado
-        ? `<div class="m-cash">🏦 Transferencia — ✅ pago confirmado${o.referencia?` (ref: ${o.referencia})`:''}</div>`
-        : `<div class="m-cash" style="color:#e8b23a;">🏦 Transferencia — ⏳ pendiente de confirmar${o.referencia?` (ref: ${o.referencia})`:''}</div>
-           <button class="btn-block" style="background:#1a3a24;color:#7fbf6a;" onclick="confirmarPago('${o.id}')">✅ Marcar pago recibido</button>`) : ''}
-      ${o.comprobanteUrl ? `<a class="btn-block" style="background:#3a2f26;" href="${o.comprobanteUrl}" target="_blank">🧾 Ver comprobante</a>` : ''}
+        ? `<div class="m-cash">🏦 Transferencia — ✅ pago confirmado${o.referencia?` (ref: ${esc(o.referencia)})`:''}</div>`
+        : `<div class="m-cash" style="color:#e8b23a;">🏦 Transferencia — ⏳ pendiente de confirmar${o.referencia?` (ref: ${esc(o.referencia)})`:''}</div>
+           <button class="btn-block" style="background:#1a3a24;color:#7fbf6a;" onclick="confirmarPago('${escJs(o.id)}')">✅ Marcar pago recibido</button>`) : ''}
+      ${o.comprobanteUrl ? `<a class="btn-block" style="background:#3a2f26;" href="${esc(urlSegura(o.comprobanteUrl))}" target="_blank">🧾 Ver comprobante</a>` : ''}
       ${accion}
-      <a class="btn-block wa" href="${waLink(o.phone, ultimoMsg)}" target="_blank">📲 Enviar WhatsApp al cliente</a>
+      <a class="btn-block wa" href="${esc(waLink(o.phone, ultimoMsg))}" target="_blank">📲 Enviar WhatsApp al cliente</a>
     </div>`;
   }).join('');
   inicializarMapaGeneral(conUbicacion);
@@ -1273,7 +1291,7 @@ function renderOwnerIngresos(data){
     contenido = `<div class="order-card">
       <h3 style="margin:2px 0 4px;">${money(total)}</h3>
       <div style="font-size:11.5px;color:#8a7a67;margin-bottom:10px;">${delDia.length} pedido${delDia.length===1?'':'s'} entregado${delDia.length===1?'':'s'} ese día</div>
-      ${delDia.map(o=>`<div class="item-line"><span>${o.custName} · #${o.shortId}</span><span>${money(o.total)}</span></div>`).join('')}
+      ${delDia.map(o=>`<div class="item-line"><span>${esc(o.custName)} · #${esc(o.shortId)}</span><span>${money(o.total)}</span></div>`).join('')}
     </div>`;
   } else {
     const grupos = {};
@@ -1288,7 +1306,7 @@ function renderOwnerIngresos(data){
       return `<div class="day-card">
         <div class="head"><b>${nombreDia(k)}</b><span>${money(totalDia)}</span></div>
         <div class="sub">${pedidosDia.length} pedido${pedidosDia.length===1?'':'s'}</div>
-        ${pedidosDia.map(o=>`<div class="item-line"><span>${o.custName} · #${o.shortId}</span><span>${money(o.total)}</span></div>`).join('')}
+        ${pedidosDia.map(o=>`<div class="item-line"><span>${esc(o.custName)} · #${esc(o.shortId)}</span><span>${money(o.total)}</span></div>`).join('')}
       </div>`;
     }).join('');
   }
@@ -1340,20 +1358,20 @@ function renderRider(data){
   el.dataset.vista='repartidor';
   el.dataset.snapshot=snapshot;
   el.innerHTML = `<div class="staff-name-box" style="display:flex;align-items:center;justify-content:space-between;">
-      <span>Repartidor: <b>${riderName}</b></span>
+      <span>Repartidor: <b>${esc(riderName)}</b></span>
       <button class="btn-block wine" style="width:auto;margin-top:0;padding:8px 12px;" onclick="cambiarRepartidor()">Cambiar</button>
     </div>
     <div class="staff-actions"><button onclick="cerrarAccesoStaff()">🔒 Cerrar acceso</button></div>` +
     (mine.length===0 ? '<div class="empty">No tienes entregas asignadas ahora mismo.</div>' : mine.map(o=>`
       <div class="order-card">
-        <b>${o.custName}</b>
-        <div style="font-size:11.5px;color:#8a7a67;margin:4px 0 8px;">${o.addr||''} · ${o.phone}</div>
-        ${o.location ? `<div class="mini-map" id="mapa_r_${o.id}"></div><a class="btn-block" style="background:#3a2f26;margin-top:0;" href="https://www.google.com/maps?q=${o.location.lat},${o.location.lng}" target="_blank">🧭 Cómo llegar</a>` : ''}
-        ${o.items.map(i=>`<div class="item-line"><span>${i.emoji} ${i.nombre} x${i.cantidad}</span><span>${money(i.precio*i.cantidad)}</span></div>`).join('')}
+        <b>${esc(o.custName)}</b>
+        <div style="font-size:11.5px;color:#8a7a67;margin:4px 0 8px;">${esc(o.addr||'')} · ${esc(o.phone)}</div>
+        ${o.location ? `<div class="mini-map" id="mapa_r_${esc(o.id)}"></div><a class="btn-block" style="background:#3a2f26;margin-top:0;" href="https://www.google.com/maps?q=${Number(o.location.lat)},${Number(o.location.lng)}" target="_blank">🧭 Cómo llegar</a>` : ''}
+        ${o.items.map(i=>`<div class="item-line"><span>${esc(i.emoji)} ${esc(i.nombre)} x${Number(i.cantidad)||0}</span><span>${money(i.precio*i.cantidad)}</span></div>`).join('')}
         <div style="font-weight:700;margin:8px 0 0;">${money(o.total)}</div>
         ${o.pagaCon?`<div class="m-cash">💵 Lleva vuelto: ${money(vueltoFor(o))} (paga con ${money(o.pagaCon)})</div>`:''}
-        <a class="btn-block wa" href="${waLink(o.phone, '¡Voy en camino con tu pedido #'+o.shortId+'! 🛵')}" target="_blank">📲 Avisar por WhatsApp</a>
-        <button class="btn-block orange" onclick="advance('${o.id}','')">Marcar entregado</button>
+        <a class="btn-block wa" href="${esc(waLink(o.phone, '¡Voy en camino con tu pedido #'+o.shortId+'! 🛵'))}" target="_blank">📲 Avisar por WhatsApp</a>
+        <button class="btn-block orange" onclick="advance('${escJs(o.id)}','')">Marcar entregado</button>
       </div>`).join(''));
   inicializarMapasPedidos(mine, 'mapa_r_');
 }
