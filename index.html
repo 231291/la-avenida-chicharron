@@ -466,7 +466,7 @@ function rowToMenuItem(r){
   return { id:r.id, nombre:r.nombre, tag:r.tag||'', precio:Number(r.precio)||0, unidad:r.unidad||'', emoji:r.emoji||'', activo: r.activo !== false, categoria: r.categoria || 'domingo' };
 }
 function rowToCuenta(r){
-  return { id:r.id, banco:r.banco, tipoCuenta:r.tipo_cuenta||'', numeroCuenta:String(r.numero_cuenta||''), titular:r.titular||'' };
+  return { id:r.id, banco:r.banco, tipoCuenta:r.tipo_cuenta||'', numeroCuenta:String(r.numero_cuenta||''), titular:r.titular||'', cedula:r.cedula||'' };
 }
 function rowToRepartidor(r){
   return { id:r.id, nombre:r.nombre, pin:String(r.pin||''), activo: r.activo !== false };
@@ -598,7 +598,7 @@ async function agregarArticuloNuevo(){
 
 /* ---------- Cuentas bancarias (CRUD del Dueño) ---------- */
 async function pushCreateCuenta(cuenta){
-  const row = { id:cuenta.id, banco:cuenta.banco, tipo_cuenta:cuenta.tipoCuenta||'', numero_cuenta:cuenta.numeroCuenta, titular:cuenta.titular };
+  const row = { id:cuenta.id, banco:cuenta.banco, tipo_cuenta:cuenta.tipoCuenta||'', numero_cuenta:cuenta.numeroCuenta, titular:cuenta.titular, cedula:cuenta.cedula||'' };
   const { error } = await sb.from('cuentas').insert(row);
   if(error) console.error('No se pudo crear la cuenta', error);
 }
@@ -608,6 +608,7 @@ async function pushUpdateCuenta(id, patch){
   if(patch.tipoCuenta!==undefined) row.tipo_cuenta = patch.tipoCuenta;
   if(patch.numeroCuenta!==undefined) row.numero_cuenta = patch.numeroCuenta;
   if(patch.titular!==undefined) row.titular = patch.titular;
+  if(patch.cedula!==undefined) row.cedula = patch.cedula;
   const { error } = await sb.from('cuentas').update(row).eq('id', id);
   if(error) console.error('No se pudo actualizar la cuenta', error);
 }
@@ -620,8 +621,9 @@ async function guardarCuenta(id){
   const tipoCuenta = document.getElementById('cta_tipo_'+id).value.trim();
   const numeroCuenta = document.getElementById('cta_numero_'+id).value.trim();
   const titular = document.getElementById('cta_titular_'+id).value.trim();
+  const cedula = document.getElementById('cta_cedula_'+id).value.trim();
   if(!banco || !numeroCuenta || !titular){ alert('Completa el banco, el número de cuenta y el titular.'); return; }
-  await pushUpdateCuenta(id, {banco, tipoCuenta, numeroCuenta, titular});
+  await pushUpdateCuenta(id, {banco, tipoCuenta, numeroCuenta, titular, cedula});
   renderCurrent();
 }
 async function eliminarCuenta(id, banco){
@@ -634,13 +636,15 @@ async function agregarCuentaNueva(){
   const tipoCuenta = document.getElementById('nueva_cta_tipo').value.trim() || 'Cuenta de Ahorros';
   const numeroCuenta = document.getElementById('nueva_cta_numero').value.trim();
   const titular = document.getElementById('nueva_cta_titular').value.trim();
+  const cedula = document.getElementById('nueva_cta_cedula').value.trim();
   if(!banco || !numeroCuenta || !titular){ alert('Completa el banco, el número de cuenta y el titular.'); return; }
   const id = 'cta_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
-  await pushCreateCuenta({id, banco, tipoCuenta, numeroCuenta, titular});
+  await pushCreateCuenta({id, banco, tipoCuenta, numeroCuenta, titular, cedula});
   document.getElementById('nueva_cta_banco').value='';
   document.getElementById('nueva_cta_tipo').value='';
   document.getElementById('nueva_cta_numero').value='';
   document.getElementById('nueva_cta_titular').value='';
+  document.getElementById('nueva_cta_cedula').value='';
   renderCurrent();
 }
 
@@ -918,7 +922,7 @@ function setEntrega(val) {
 }
 function textoDatosTransferencia(){
   const cuentas = CUENTAS_TRANSFERENCIA.map(d =>
-    `🏦 <b>${esc(d.banco)}</b><br>${esc(d.tipoCuenta)} · Cuenta: <b>${esc(d.numeroCuenta)}</b><br>A nombre de: ${esc(d.titular)}`
+    `🏦 <b>${esc(d.banco)}</b><br>${esc(d.tipoCuenta)} · Cuenta: <b>${esc(d.numeroCuenta)}</b><br>A nombre de: ${esc(d.titular)}${d.cedula ? ` · Cédula: ${esc(d.cedula)}` : ''}`
   ).join('<hr style="border:none;border-top:1px solid #2c241d;margin:10px 0;">');
   return `${cuentas}<br><br>Transfiere por el total del pedido a cualquiera de estas cuentas (la que uses tú) — puedes poner el número de confirmación abajo (opcional) para que sea más fácil verificarla.`;
 }
@@ -1107,6 +1111,7 @@ function renderOwnerBancos(data){
       <input class="field-input" id="cta_tipo_${esc(c.id)}" value="${esc(c.tipoCuenta)}" placeholder="Tipo de cuenta (ej: Ahorros)">
       <input class="field-input" id="cta_numero_${esc(c.id)}" value="${esc(c.numeroCuenta)}" placeholder="Número de cuenta">
       <input class="field-input" id="cta_titular_${esc(c.id)}" value="${esc(c.titular)}" placeholder="Nombre del titular">
+      <input class="field-input" id="cta_cedula_${esc(c.id)}" value="${esc(c.cedula)}" placeholder="Cédula del titular">
       <button class="btn-block orange" onclick="guardarCuenta('${escJs(c.id)}')">💾 Guardar</button>
       <button class="btn-block wine" onclick="eliminarCuenta('${escJs(c.id)}','${escJs(c.banco)}')">🗑️ Borrar cuenta</button>
     </div>`).join('');
@@ -1119,6 +1124,7 @@ function renderOwnerBancos(data){
       <input class="field-input" id="nueva_cta_tipo" placeholder="Tipo de cuenta (ej: Ahorros)">
       <input class="field-input" id="nueva_cta_numero" placeholder="Número de cuenta">
       <input class="field-input" id="nueva_cta_titular" placeholder="Nombre del titular">
+      <input class="field-input" id="nueva_cta_cedula" placeholder="Cédula del titular">
       <button class="btn-block orange" onclick="agregarCuentaNueva()">Agregar cuenta</button>
     </div>`;
 }
