@@ -1,0 +1,1432 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>La Avenida Chicharrón — Pedidos</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23171310'/%3E%3Ccircle cx='50' cy='52' r='30' fill='%23e8901f'/%3E%3Ctext x='50' y='63' font-size='38' text-anchor='middle'%3E%F0%9F%90%B7%3C/text%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#7a1414">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Avenida App">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #171310;
+    color: #f3e7d6;
+    font-family: 'Inter', sans-serif;
+    display: flex;
+    justify-content: center;
+  }
+  #app { width: 100%; max-width: 480px; min-height: 100vh; position: relative; }
+  .display { font-family: 'Oswald', sans-serif; }
+  button { cursor: pointer; border: none; font-family: inherit; }
+  input { font-family: inherit; }
+
+  header {
+    background: linear-gradient(180deg, #1f1a15 0%, #171310 100%);
+    border-bottom: 3px solid #7a1414;
+    padding: 24px 20px 20px;
+  }
+  .header-top { display: flex; align-items: center; gap: 12px; }
+  .pig {
+    background: #e8901f; border-radius: 999px; width: 48px; height: 48px;
+    display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0;
+  }
+  .brand-name { font-size: 22px; font-weight: 700; letter-spacing: 0.3px; line-height: 1; }
+  .brand-sub { color: #e8901f; font-size: 12px; font-weight: 600; letter-spacing: 1px; }
+  .hours {
+    margin-left: auto; background: #2a2119; border-radius: 999px; padding: 6px 12px;
+    display: flex; align-items: center; gap: 6px; font-size: 11px; color: #c9b8a0; white-space: nowrap;
+  }
+  .address { font-size: 13px; color: #8a7a67; margin-top: 10px; line-height: 1.5; }
+  .fecha-hoy { font-size: 11.5px; color: #e8901f; font-weight: 600; margin-top: 8px; }
+
+  .role-toggle { display: flex; background: #211a15; border-radius: 999px; padding: 4px; margin-top: 14px; }
+  .role-toggle button { flex: 1; background: transparent; border-radius: 999px; padding: 9px 4px; font-size: 12.5px; font-weight: 700; color: #8a7a67; }
+  .role-toggle button.active { background: #7a1414; color: #f3e7d6; }
+
+  #downloadBtn {
+    margin-top: 10px; width: 100%; background: transparent; border: 1px solid #3a2f26; border-radius: 10px; padding: 8px 0;
+    display: flex; align-items: center; justify-content: center; gap: 6px; color: #c9b8a0; font-size: 11.5px; font-weight: 600;
+  }
+
+  .section-title { padding: 20px 20px 4px; }
+  .section-title h1 { font-size: 26px; font-weight: 700; }
+  .section-title p { font-size: 13px; color: #8a7a67; margin-top: 2px; }
+
+  #menuList { padding: 12px 20px 160px; display: flex; flex-direction: column; gap: 12px; }
+  .item-card {
+    background: #211a15; border: 1px solid #2c241d; border-radius: 14px; padding: 14px;
+    display: flex; align-items: center; gap: 12px; transition: all 220ms ease;
+  }
+  .item-card.has-qty { border-color: #7a1414; }
+  .item-emoji {
+    background: #2a2119; border-radius: 12px; width: 56px; height: 56px; font-size: 26px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .item-info { flex: 1; min-width: 0; }
+  .item-name { font-size: 15px; font-weight: 700; }
+  .item-tag { font-size: 11px; color: #e8901f; font-weight: 600; margin-top: 1px; }
+  .item-price { font-size: 13px; font-weight: 700; color: #c9b8a0; margin-top: 5px; }
+  .item-price span { font-weight: 400; color: #6f6153; }
+
+  .add-btn {
+    background: #7a1414; color: #f3e7d6; border-radius: 999px; padding: 9px 16px; font-size: 13px; font-weight: 600;
+  }
+  .qty-box { display: flex; align-items: center; gap: 8px; background: #2a2119; border-radius: 999px; padding: 4px; }
+  .qty-box button {
+    width: 26px; height: 26px; border-radius: 999px; background: #3a2f26; display: flex; align-items: center; justify-content: center; color: #f3e7d6; font-size: 14px;
+  }
+  .qty-box button.plus { background: #7a1414; }
+  .qty-box span { width: 16px; text-align: center; font-size: 13px; font-weight: 700; }
+
+  .footer-hint { padding: 8px 20px 24px; }
+  .footer-hint-box {
+    background: #211a15; border-radius: 14px; padding: 16px; display: flex; align-items: center; gap: 10px;
+    font-size: 12px; color: #8a7a67; line-height: 1.5;
+  }
+
+  #cartBar { position: fixed; bottom: 0; left: 0; right: 0; display: none; justify-content: center; padding: 0 16px 16px; }
+  #cartBar.show { display: flex; }
+  #cartBarInner { width: 100%; max-width: 480px; }
+  #cartBtn {
+    background: #7a1414; border-radius: 16px; padding: 15px 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    width: 100%; display: flex; align-items: center; justify-content: space-between;
+  }
+  .cart-left { display: flex; align-items: center; gap: 8px; }
+  .cart-count {
+    background: #f3e7d6; color: #7a1414; width: 24px; height: 24px; border-radius: 999px; font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .cart-label { color: #f3e7d6; font-weight: 600; font-size: 14px; }
+  .cart-total { color: #f3e7d6; font-weight: 700; font-size: 15px; }
+
+  #confirmScreen, #sentScreen { display: none; padding: 16px 20px 32px; }
+  #confirmScreen.show, #sentScreen.show { display: block; }
+  .back-btn { display: flex; align-items: center; gap: 6px; color: #8a7a67; font-size: 13px; margin-bottom: 16px; background: none; }
+  #confirmScreen h2 { font-size: 22px; font-weight: 700; margin-bottom: 14px; }
+  #cartItems { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+  .cart-item-row {
+    background: #211a15; border-radius: 12px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between;
+  }
+  .cart-item-left { display: flex; align-items: center; gap: 8px; }
+  .cart-item-left .emoji { font-size: 18px; }
+  .cart-item-name { font-size: 13px; font-weight: 600; }
+  .cart-item-qty { font-size: 11px; color: #6f6153; }
+  .cart-item-price { font-size: 13px; font-weight: 700; color: #c9b8a0; }
+
+  .entrega-row { display: flex; gap: 8px; margin-bottom: 16px; }
+  .entrega-btn {
+    flex: 1; border-radius: 12px; padding: 10px 0; background: #211a15; border: 1px solid #2c241d;
+    display: flex; align-items: center; justify-content: center; gap: 6px; color: #f3e7d6; font-size: 13px; font-weight: 600;
+  }
+  .entrega-btn.active { background: #7a1414; border-color: #7a1414; }
+
+  label.field-label { display:block; font-size:12px; font-weight:700; color:#c9b8a0; margin-bottom:6px; }
+  .field-input {
+    background: #211a15; border: 1px solid #2c241d; border-radius: 12px; padding: 12px 14px; color: #f3e7d6;
+    font-size: 14px; width: 100%; margin-bottom: 16px; outline: none;
+  }
+  .field-input::placeholder { color: #6f6153; }
+
+  .total-row {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;
+    border-top: 1px solid #2c241d; padding-top: 14px;
+  }
+  .total-label { font-size: 14px; color: #8a7a67; }
+  .total-value { font-size: 22px; font-weight: 700; color: #e8901f; }
+
+  #sendBtn {
+    background: #3a2f26; opacity: 0.6; border-radius: 14px; padding: 15px 0; width: 100%;
+    display: flex; align-items: center; justify-content: center; gap: 8px; color: #0f1c14; font-weight: 700; font-size: 14px;
+  }
+  #sendBtn.ready { background: #25D366; opacity: 1; }
+
+  #sentScreen { text-align: center; padding-top: 40px; }
+  .check-circle {
+    width: 68px; height: 68px; border-radius: 999px; background: #25D366; margin: 0 auto 20px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #sentScreen h2 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+  #sentText { font-size: 13px; color: #8a7a67; line-height: 1.6; max-width: 300px; margin: 0 auto; }
+  #resetBtn { margin-top: 26px; color: #e8901f; font-size: 13px; font-weight: 600; background: none; }
+
+  /* ---------- tracking / owner / rider shared ---------- */
+  #trackingScreen, #ownerScreen, #riderScreen { display: none; padding: 16px 20px 60px; }
+  #trackingScreen.show, #ownerScreen.show, #riderScreen.show { display: block; }
+  .empty { text-align: center; color: #6f6153; font-size: 13.5px; padding: 50px 10px; }
+
+  .order-card { background: #211a15; border: 1px solid #2c241d; border-radius: 14px; padding: 15px; margin-bottom: 12px; }
+  .order-card .oid { font-size: 11px; color: #8a7a67; font-weight: 600; margin-bottom: 6px; }
+  .order-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+  .badge { display:inline-block; font-size: 10.5px; font-weight: 800; padding: 4px 10px; border-radius: 999px; margin-bottom: 8px; }
+  .badge.recibido { background:#3a2f1a; color:#e8b23a; }
+  .badge.preparando { background:#3a1f14; color:#e8901f; }
+  .badge.listo { background:#1a3a24; color:#3ac97a; }
+  .badge.en_camino { background:#1a2a3a; color:#4a9ae8; }
+  .badge.entregado { background:#20301f; color:#7fbf6a; }
+  .item-line { display:flex; justify-content:space-between; font-size:12.5px; padding:4px 0; border-top:1px solid #2c241d; }
+  .item-line:first-of-type { border-top:none; }
+  .m-cash { font-size:11.5px; color:#e8901f; font-weight:700; margin:8px 0; }
+  .btn-block {
+    display:block; width:100%; text-align:center; text-decoration:none; border-radius:12px; padding:12px 0;
+    font-size:13.5px; font-weight:700; margin-top:8px; color:#f3e7d6;
+  }
+  .btn-block.orange { background:#e8901f; color:#171310; }
+  .btn-block.wa { background:#25D366; color:#0f1c14; }
+  .btn-block.wine { background:#7a1414; }
+  .assign-row { display:flex; gap:8px; margin-top:8px; }
+  .assign-row input { flex:1; }
+
+  .role-tabs { display:flex; background:#211a15; border-radius:999px; padding:4px; margin-bottom:14px; }
+  .role-tabs button { flex:1; background:transparent; border-radius:999px; padding:8px 4px; font-size:12px; font-weight:700; color:#8a7a67; }
+  .role-tabs button.active { background:#7a1414; color:#f3e7d6; }
+  .staff-actions { display:flex; justify-content:flex-end; gap:14px; margin-bottom:10px; }
+  .staff-actions button { background:none; border:none; color:#6f6153; font-size:11px; font-weight:600; text-decoration:underline; }
+
+  .new-order-flash { background:#e8901f; color:#171310; font-weight:800; text-align:center; padding:10px; border-radius:10px; margin-bottom:14px; animation:pulseFlash 1s ease-in-out infinite; }
+  @keyframes pulseFlash{0%,100%{opacity:1;}50%{opacity:.55;}}
+
+  .stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
+  .stat-box { background:#211a15; border:1px solid #2c241d; border-radius:12px; padding:12px 8px; text-align:center; }
+  .stat-box .num { font-family:'Oswald',sans-serif; font-weight:700; font-size:17px; color:#e8901f; }
+  .stat-box .lbl { font-size:9.5px; font-weight:700; color:#8a7a67; text-transform:uppercase; letter-spacing:.02em; margin-top:2px; }
+  .filters-row { display:flex; gap:8px; margin-bottom:14px; }
+  .filters-row select, .filters-row input { flex:1; background:#211a15; border:1px solid #2c241d; border-radius:10px; padding:9px 8px; font-size:12px; color:#f3e7d6; }
+  .day-card { background:#211a15; border:1px solid #2c241d; border-radius:12px; padding:12px 14px; margin-bottom:10px; }
+  .day-card .head { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2px; }
+  .day-card .head b { font-size:13px; }
+  .day-card .head span { font-family:'Oswald',sans-serif; font-weight:700; color:#e8901f; font-size:14px; }
+  .day-card .sub { font-size:10.5px; color:#6f6153; margin-bottom:6px; }
+
+  .staff-name-box { background:#211a15; border:1px solid #2c241d; border-radius:12px; padding:14px; margin-bottom:14px; }
+  .staff-name-box input { margin-bottom:10px; }
+  .mini-map { height:160px; border-radius:10px; margin:6px 0 8px; background:#211a15; }
+  .mini-map .leaflet-control-attribution { font-size:8px; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <div class="header-top">
+      <div class="pig">🐷</div>
+      <div>
+        <div class="brand-name display">La Avenida</div>
+        <div class="brand-sub">CHICHARRÓN</div>
+      </div>
+      <div class="hours">⏰ 9:00 AM – 7:00 PM</div>
+    </div>
+    <p class="address">Menú de domingos · Ave. Pedro A. Rivera, al lado de Induveca, La Vega</p>
+    <p class="fecha-hoy" id="fechaHoy"></p>
+    <div class="role-toggle">
+      <button id="btnCliente" class="active" onclick="irACliente()">Cliente</button>
+      <button id="btnDueno" onclick="tryEnterStaff('owner')">Dueño</button>
+      <button id="btnRepartidor" onclick="tryEnterStaff('rider')">Repartidor</button>
+    </div>
+    <button id="downloadBtn" onclick="descargarApp()">📲 Instalar esta app</button>
+  </header>
+
+  <!-- ===================== CLIENTE: MENÚ ===================== -->
+  <div id="menuScreen">
+    <div class="section-title">
+      <h1 class="display">Haz tu pedido</h1>
+      <p id="menuSubtitle">Sin llamar, sin esperar. Elige y confirma.</p>
+    </div>
+    <div class="role-tabs" style="margin:0 20px 4px;width:calc(100% - 40px);">
+      <button class="active" id="catDomingo" onclick="setMenuCategoria('domingo')">🍖 Domingos</button>
+      <button id="catSemana" onclick="setMenuCategoria('semana')">🍛 Entre semana</button>
+    </div>
+    <div id="menuList"></div>
+    <div class="footer-hint" id="footerHint">
+      <div class="footer-hint-box">🔥 Todos los domingos, de 9:00 AM a 7:00 PM. Delivery disponible.</div>
+    </div>
+  </div>
+
+  <!-- ===================== CLIENTE: CARRITO ===================== -->
+  <div id="confirmScreen">
+    <button class="back-btn" onclick="goToMenu()">✕ Seguir viendo el menú</button>
+    <h2 class="display">Tu pedido</h2>
+    <div id="cartItems"></div>
+    <div class="entrega-row">
+      <button class="entrega-btn active" id="entregaDelivery" onclick="setEntrega('delivery')">🛵 Delivery</button>
+      <button class="entrega-btn" id="entregaPickup" onclick="setEntrega('pickup')">📍 Recoger</button>
+    </div>
+    <label class="field-label">Tu nombre</label>
+    <input class="field-input" id="nombreInput" placeholder="Ej: Yolanda Pérez" oninput="onFormChange()" />
+    <label class="field-label">Tu WhatsApp</label>
+    <input class="field-input" id="phoneInput" placeholder="Ej: 809-555-1234" oninput="onFormChange()" />
+    <div id="addrBlock">
+      <label class="field-label">Dirección de entrega</label>
+      <input class="field-input" id="addrInput" placeholder="Ej: Calle Duarte #12" oninput="onFormChange()" />
+      <div id="locStatus" style="margin:-8px 0 12px;font-size:11.5px;color:#8a7a67;"></div>
+      <button type="button" class="btn-block" style="background:#3a2f26;margin-top:0;margin-bottom:16px;" onclick="shareLocation()">📍 Enviar mi ubicación exacta</button>
+    </div>
+    <label class="field-label">¿Cómo pagas?</label>
+    <div class="entrega-row">
+      <button class="entrega-btn active" id="payEfectivo" onclick="setPayMethod('efectivo')">💵 Efectivo</button>
+      <button class="entrega-btn" id="payTransferencia" onclick="setPayMethod('transferencia')">🏦 Transferencia</button>
+    </div>
+    <div id="cashBlock">
+      <label class="field-label">¿Con qué billete vas a pagar? (opcional, para tu vuelto)</label>
+      <input class="field-input" id="pagaConInput" type="number" placeholder="Ej: 1000" />
+    </div>
+    <div id="transferBlock" style="display:none;">
+      <div class="order-card" style="border-color:#e8901f;margin-bottom:16px;">
+        <div style="font-size:12px;color:#c9b8a0;line-height:1.7;" id="datosTransferenciaBox"></div>
+      </div>
+      <label class="field-label">Número de confirmación o referencia (opcional)</label>
+      <input class="field-input" id="referenciaInput" placeholder="Ej: los últimos 4 dígitos, o el número de confirmación" />
+      <label class="field-label">Foto del comprobante (opcional, ayuda a validar tu pago más rápido)</label>
+      <input class="field-input" id="comprobanteInput" type="file" accept="image/*" onchange="onComprobanteChange(event)" />
+      <div id="comprobantePreview" style="margin:-8px 0 12px;"></div>
+    </div>
+    <div class="total-row">
+      <span class="total-label">Total</span>
+      <span class="total-value display" id="totalValue">RD$0</span>
+    </div>
+    <button id="sendBtn" onclick="sendOrder()">💬 Confirmar y enviar pedido</button>
+  </div>
+
+  <!-- ===================== CLIENTE: ENVIADO ===================== -->
+  <div id="sentScreen">
+    <div class="check-circle">✓</div>
+    <h2 class="display">¡Pedido enviado!</h2>
+    <p id="sentText"></p>
+    <button id="resetBtn" onclick="setRole('cliente')">Ver mi pedido</button>
+  </div>
+
+  <!-- ===================== CLIENTE: SEGUIMIENTO ===================== -->
+  <div id="trackingScreen"></div>
+
+  <!-- ===================== DUEÑO ===================== -->
+  <div id="ownerScreen"></div>
+
+  <!-- ===================== REPARTIDOR ===================== -->
+  <div id="riderScreen"></div>
+
+  <div id="cartBar">
+    <div id="cartBarInner">
+      <button id="cartBtn" onclick="goToConfirm()">
+        <div class="cart-left">
+          <div class="cart-count" id="cartCount">0</div>
+          <span class="cart-label">Ver pedido</span>
+        </div>
+        <span class="cart-total" id="cartBarTotal">RD$0</span>
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let MENU = [
+  { id: "chicharron", nombre: "Chicharrón", tag: "El protagonista", precio: 350, unidad: "por libra", emoji: "🐷", activo:true, categoria:"domingo" },
+  { id: "mofongo", nombre: "Mofongo", tag: "Hecho al momento", precio: 280, unidad: "por plato", emoji: "🍲", activo:true, categoria:"domingo" },
+  { id: "orejitas", nombre: "Orejitas de cerdo", tag: "Especialidad de la casa", precio: 300, unidad: "por libra", emoji: "🍖", activo:true, categoria:"domingo" },
+  { id: "ceviche", nombre: "Ceviche de chicharrón", tag: "Una explosión de sabor", precio: 320, unidad: "por plato", emoji: "🍋", activo:true, categoria:"domingo" },
+  { id: "guacamole", nombre: "Guacamole", tag: "Fresco y delicioso", precio: 180, unidad: "por orden", emoji: "🥑", activo:true, categoria:"domingo" },
+  { id: "locrio", nombre: "Locrio de chicharrón", tag: "El favorito de los domingos", precio: 300, unidad: "por plato", emoji: "🍚", activo:true, categoria:"domingo" },
+  { id: "bebida", nombre: "Bebidas refrescantes", tag: "Bien frías", precio: 80, unidad: "c/u", emoji: "🥤", activo:true, categoria:"domingo" },
+];
+
+/* ---------- Conexión a Supabase ----------
+   Proyecto de Supabase dedicado a esta app (Project URL + anon public key,
+   Settings → API dentro del proyecto). La anon key es pública a propósito:
+   el acceso real se controla con las políticas de la base de datos. */
+const SUPABASE_URL = "https://geuzrauueykylcnhiimm.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdldXpyYXV1ZXlreWxjbmhpaW1tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3MzM2NTgsImV4cCI6MjEwNDMwOTY1OH0.qUBcKxLQJJ7FXji4VSa6ByPXHt5ZWfUOfVDwSrvVsS4";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// El Dueño entra con correo/contraseña real (Supabase Auth) — se
+// administra desde el dashboard de Supabase (Authentication → Users).
+// Los repartidores entran con su propio PIN (tabla "repartidores",
+// editable desde la pestaña "Repartidores" del panel del Dueño).
+let duenoAutenticado = false;
+
+// Cuentas bancarias que se le muestran al cliente cuando elige "Transferencia".
+// Esto es solo el valor de arranque — el Dueño las edita desde la pestaña
+// "Bancos" de su panel (nombre real, número real, etc.) sin tocar código.
+let CUENTAS_TRANSFERENCIA = [
+  { id:"banco1", banco: "Banco Popular Dominicano", tipoCuenta: "Cuenta de Ahorros", numeroCuenta: "000-000000-0", titular: "La Avenida Chicharrón SRL" },
+  { id:"banco2", banco: "Banreservas", tipoCuenta: "Cuenta de Ahorros", numeroCuenta: "000-000000-0", titular: "La Avenida Chicharrón SRL" },
+  { id:"banco3", banco: "Banco BHD", tipoCuenta: "Cuenta de Ahorros", numeroCuenta: "000-000000-0", titular: "La Avenida Chicharrón SRL" },
+];
+
+const STATUS_LABEL = { recibido:"Recibido", preparando:"Preparando", listo:"Listo", en_camino:"En camino", entregado:"Entregado", cancelado:"Cancelado" };
+
+let cart = {};
+let entrega = "delivery";
+let payMethod = "efectivo";
+let clientLocation = null;
+let comprobanteBase64 = null;
+let menuCategoria = (new Date().getDay()===0) ? 'domingo' : 'semana';
+let ownerMenuCategoria = menuCategoria;
+let role = "cliente"; // cliente | tracking | owner | rider
+let ownerTab = "pedidos"; // pedidos | ingresos
+let myOrderIds = [];
+try { myOrderIds = JSON.parse(localStorage.getItem('avenida_mis_pedidos') || '[]'); } catch(e) { myOrderIds = []; }
+let riderName = (localStorage.getItem('avenida_repartidor_ok')==='1') ? (localStorage.getItem('avenida_repartidor_nombre')||'') : "";
+let knownOrderIds = null;
+let showNewOrderFlash = false;
+
+function money(n) { return "RD$" + (n||0).toLocaleString("es-DO"); }
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function normalizarNombre(s){ return String(s||'').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
+
+// Sugiere una etiqueta según palabras clave en el nombre del plato — el
+// dueño la puede editar o borrar, es solo un punto de partida.
+function sugerirEtiqueta(nombre){
+  const n = normalizarNombre(nombre);
+  const reglas = [
+    [/pollo/, '🐔 Con pollo'],
+    [/res\b|carne/, '🥩 Con carne de res'],
+    [/cerdo|chicharr|pernil|costilla/, '🐷 Con cerdo'],
+    [/pescado|pez\b/, '🐟 Con pescado'],
+    [/camaron|mariscos/, '🦐 Con mariscos'],
+    [/arroz|locrio|moro/, '🍚 Con arroz'],
+    [/habichuela|guandul/, '🫘 Con habichuelas'],
+    [/mofongo|mangu|platano/, '🍌 Con plátano'],
+    [/ensalada|vegetal|vegetarian/, '🥗 Vegetariano'],
+    [/sopa|caldo|sancocho/, '🍲 Calientito'],
+    [/jugo|bebida|refresco|morir sonando/, '🥤 Para acompañar'],
+    [/postre|dulce|flan/, '🍮 Dulce'],
+  ];
+  for(const [regex, tag] of reglas){ if(regex.test(n)) return tag; }
+  return '🍽️ Plato del día';
+}
+function sugerirEtiquetaAuto(){
+  const tagInput = document.getElementById('nuevo_tag');
+  if(!tagInput) return;
+  if(tagInput.value.trim()==='' || tagInput.dataset.auto==='1'){
+    tagInput.value = sugerirEtiqueta(document.getElementById('nuevo_nombre').value);
+    tagInput.dataset.auto = '1';
+  }
+}
+
+/* ---------- Backend (Supabase) ---------- */
+function rowToOrder(r){
+  return {
+    id: r.id, shortId: r.short_id, custName: r.cust_name, phone: r.phone,
+    items: r.items || [], total: Number(r.total)||0, deliveryType: r.delivery_type,
+    addr: r.addr || null,
+    pagaCon: (r.paga_con===null || r.paga_con===undefined) ? null : Number(r.paga_con),
+    status: r.status, rider: r.rider || null, createdAt: Number(r.created_at),
+    messages: r.messages || [], payMethod: r.pay_method || 'efectivo',
+    referencia: r.referencia || null, pagoConfirmado: r.pago_confirmado === true,
+    location: (r.lat!==null && r.lat!==undefined && r.lng!==null && r.lng!==undefined) ? { lat:Number(r.lat), lng:Number(r.lng) } : null,
+    comprobanteUrl: r.comprobante_url || null
+  };
+}
+function orderToRow(o){
+  return {
+    id:o.id, short_id:o.shortId, cust_name:o.custName, phone:o.phone,
+    items:o.items||[], total:o.total, delivery_type:o.deliveryType, addr:o.addr||null,
+    paga_con: (o.pagaCon===null || o.pagaCon===undefined) ? null : o.pagaCon,
+    status:o.status, rider:o.rider||null, created_at:o.createdAt,
+    messages:o.messages||[], pay_method:o.payMethod||'efectivo', referencia:o.referencia||null,
+    pago_confirmado: o.pagoConfirmado===true,
+    lat: o.location ? o.location.lat : null, lng: o.location ? o.location.lng : null,
+    comprobante_url: o.comprobanteUrl || null
+  };
+}
+function rowToMenuItem(r){
+  return { id:r.id, nombre:r.nombre, tag:r.tag||'', precio:Number(r.precio)||0, unidad:r.unidad||'', emoji:r.emoji||'', activo: r.activo !== false, categoria: r.categoria || 'domingo' };
+}
+function rowToCuenta(r){
+  return { id:r.id, banco:r.banco, tipoCuenta:r.tipo_cuenta||'', numeroCuenta:String(r.numero_cuenta||''), titular:r.titular||'' };
+}
+function rowToRepartidor(r){
+  return { id:r.id, nombre:r.nombre, pin:String(r.pin||''), activo: r.activo !== false };
+}
+
+async function fetchData(){
+  try{
+    const [op, mp, cp, rp] = await Promise.all([
+      sb.from('pedidos').select('*').order('created_at', { ascending:true }),
+      sb.from('menu').select('*'),
+      sb.from('cuentas').select('*'),
+      sb.from('repartidores').select('*')
+    ]);
+    if(op.error) console.error('No se pudieron leer los pedidos', op.error);
+    if(mp.error) console.error('No se pudo leer el menú', mp.error);
+    if(cp.error) console.error('No se pudieron leer las cuentas', cp.error);
+    if(rp.error) console.error('No se pudieron leer los repartidores', rp.error);
+    return {
+      orders: (op.data||[]).map(rowToOrder),
+      menu: (mp.data||[]).map(rowToMenuItem),
+      cuentas: (cp.data||[]).map(rowToCuenta),
+      repartidores: (rp.data||[]).map(rowToRepartidor)
+    };
+  }catch(e){ console.error('No se pudo conectar con Supabase', e); return {orders:[], menu:[], cuentas:[], repartidores:[]}; }
+}
+
+/* ---------- Repartidores (CRUD del Dueño) ---------- */
+async function pushCreateRepartidor(rep){
+  const row = { id:rep.id, nombre:rep.nombre, pin:rep.pin, activo: rep.activo!==false };
+  const { error } = await sb.from('repartidores').insert(row);
+  if(error) console.error('No se pudo crear el repartidor', error);
+}
+async function pushUpdateRepartidor(id, patch){
+  const row = {};
+  if(patch.nombre!==undefined) row.nombre = patch.nombre;
+  if(patch.pin!==undefined) row.pin = patch.pin;
+  if(patch.activo!==undefined) row.activo = patch.activo;
+  const { error } = await sb.from('repartidores').update(row).eq('id', id);
+  if(error) console.error('No se pudo actualizar el repartidor', error);
+}
+async function pushDeleteRepartidor(id){
+  const { error } = await sb.from('repartidores').delete().eq('id', id);
+  if(error) console.error('No se pudo borrar el repartidor', error);
+}
+async function guardarRepartidor(id){
+  const nombre = document.getElementById('rep_nombre_'+id).value.trim();
+  const pin = document.getElementById('rep_pin_'+id).value.trim();
+  if(!nombre || !pin){ alert('Escribe el nombre y el PIN.'); return; }
+  await pushUpdateRepartidor(id, {nombre, pin});
+  renderCurrent();
+}
+async function alternarActivoRepartidor(id, activoActual){
+  await pushUpdateRepartidor(id, {activo: !activoActual});
+  renderCurrent();
+}
+async function eliminarRepartidor(id, nombre){
+  if(!confirm(`¿Borrar a "${nombre}" de los repartidores? Ya no podrá entrar con su PIN.`)) return;
+  await pushDeleteRepartidor(id);
+  renderCurrent();
+}
+async function agregarRepartidorNuevo(){
+  const nombre = document.getElementById('nuevo_rep_nombre').value.trim();
+  const pin = document.getElementById('nuevo_rep_pin').value.trim();
+  if(!nombre || !pin){ alert('Escribe el nombre y el PIN.'); return; }
+  const id = 'rep_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+  await pushCreateRepartidor({id, nombre, pin, activo:true});
+  document.getElementById('nuevo_rep_nombre').value='';
+  document.getElementById('nuevo_rep_pin').value='';
+  renderCurrent();
+}
+
+/* ---------- Menú (CRUD del Dueño) ---------- */
+async function pushCreateItem(item){
+  const row = { id:item.id, nombre:item.nombre, tag:item.tag||'', precio:item.precio, unidad:item.unidad||'', emoji:item.emoji||'', activo:item.activo!==false, categoria:item.categoria||'domingo' };
+  const { error } = await sb.from('menu').insert(row);
+  if(error) console.error('No se pudo crear el plato', error);
+}
+async function pushUpdateItem(id, patch){
+  const row = {};
+  if(patch.nombre!==undefined) row.nombre = patch.nombre;
+  if(patch.tag!==undefined) row.tag = patch.tag;
+  if(patch.precio!==undefined) row.precio = patch.precio;
+  if(patch.unidad!==undefined) row.unidad = patch.unidad;
+  if(patch.emoji!==undefined) row.emoji = patch.emoji;
+  if(patch.activo!==undefined) row.activo = patch.activo;
+  if(patch.categoria!==undefined) row.categoria = patch.categoria;
+  const { error } = await sb.from('menu').update(row).eq('id', id);
+  if(error) console.error('No se pudo actualizar el plato', error);
+}
+async function pushDeleteItem(id){
+  const { error } = await sb.from('menu').delete().eq('id', id);
+  if(error) console.error('No se pudo borrar el plato', error);
+}
+async function guardarArticulo(id){
+  const nombre = document.getElementById('art_nombre_'+id).value.trim();
+  const tag = document.getElementById('art_tag_'+id).value.trim();
+  const precio = Number(document.getElementById('art_precio_'+id).value);
+  const unidad = document.getElementById('art_unidad_'+id).value.trim();
+  const emoji = document.getElementById('art_emoji_'+id).value.trim();
+  if(!nombre || !precio || precio<=0){ alert('Escribe un nombre y un precio válido.'); return; }
+  await pushUpdateItem(id, {nombre, tag, precio, unidad, emoji});
+  renderCurrent();
+}
+async function alternarActivo(id, activoActual){
+  await pushUpdateItem(id, {activo: !activoActual});
+  renderCurrent();
+}
+async function eliminarArticulo(id, nombre){
+  if(!confirm(`¿Borrar "${nombre}" del menú? Esto no borra pedidos ya hechos con este plato.`)) return;
+  await pushDeleteItem(id);
+  renderCurrent();
+}
+async function agregarArticuloNuevo(){
+  const nombre = document.getElementById('nuevo_nombre').value.trim();
+  const tag = document.getElementById('nuevo_tag').value.trim();
+  const precio = Number(document.getElementById('nuevo_precio').value);
+  const unidad = document.getElementById('nuevo_unidad').value.trim() || 'c/u';
+  const emoji = document.getElementById('nuevo_emoji').value.trim() || '🍽️';
+  if(!nombre || !precio || precio<=0){ alert('Escribe un nombre y un precio válido para el plato nuevo.'); return; }
+  const id = 'art_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+  await pushCreateItem({id, nombre, tag: tag || sugerirEtiqueta(nombre), precio, unidad, emoji, activo:true, categoria: ownerMenuCategoria});
+  document.getElementById('nuevo_nombre').value='';
+  document.getElementById('nuevo_tag').value='';
+  document.getElementById('nuevo_precio').value='';
+  document.getElementById('nuevo_unidad').value='';
+  document.getElementById('nuevo_emoji').value='';
+  renderCurrent();
+}
+
+/* ---------- Cuentas bancarias (CRUD del Dueño) ---------- */
+async function pushCreateCuenta(cuenta){
+  const row = { id:cuenta.id, banco:cuenta.banco, tipo_cuenta:cuenta.tipoCuenta||'', numero_cuenta:cuenta.numeroCuenta, titular:cuenta.titular };
+  const { error } = await sb.from('cuentas').insert(row);
+  if(error) console.error('No se pudo crear la cuenta', error);
+}
+async function pushUpdateCuenta(id, patch){
+  const row = {};
+  if(patch.banco!==undefined) row.banco = patch.banco;
+  if(patch.tipoCuenta!==undefined) row.tipo_cuenta = patch.tipoCuenta;
+  if(patch.numeroCuenta!==undefined) row.numero_cuenta = patch.numeroCuenta;
+  if(patch.titular!==undefined) row.titular = patch.titular;
+  const { error } = await sb.from('cuentas').update(row).eq('id', id);
+  if(error) console.error('No se pudo actualizar la cuenta', error);
+}
+async function pushDeleteCuenta(id){
+  const { error } = await sb.from('cuentas').delete().eq('id', id);
+  if(error) console.error('No se pudo borrar la cuenta', error);
+}
+async function guardarCuenta(id){
+  const banco = document.getElementById('cta_banco_'+id).value.trim();
+  const tipoCuenta = document.getElementById('cta_tipo_'+id).value.trim();
+  const numeroCuenta = document.getElementById('cta_numero_'+id).value.trim();
+  const titular = document.getElementById('cta_titular_'+id).value.trim();
+  if(!banco || !numeroCuenta || !titular){ alert('Completa el banco, el número de cuenta y el titular.'); return; }
+  await pushUpdateCuenta(id, {banco, tipoCuenta, numeroCuenta, titular});
+  renderCurrent();
+}
+async function eliminarCuenta(id, banco){
+  if(!confirm(`¿Borrar la cuenta de "${banco}"? Ya no se le mostrará al cliente.`)) return;
+  await pushDeleteCuenta(id);
+  renderCurrent();
+}
+async function agregarCuentaNueva(){
+  const banco = document.getElementById('nueva_cta_banco').value.trim();
+  const tipoCuenta = document.getElementById('nueva_cta_tipo').value.trim() || 'Cuenta de Ahorros';
+  const numeroCuenta = document.getElementById('nueva_cta_numero').value.trim();
+  const titular = document.getElementById('nueva_cta_titular').value.trim();
+  if(!banco || !numeroCuenta || !titular){ alert('Completa el banco, el número de cuenta y el titular.'); return; }
+  const id = 'cta_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+  await pushCreateCuenta({id, banco, tipoCuenta, numeroCuenta, titular});
+  document.getElementById('nueva_cta_banco').value='';
+  document.getElementById('nueva_cta_tipo').value='';
+  document.getElementById('nueva_cta_numero').value='';
+  document.getElementById('nueva_cta_titular').value='';
+  renderCurrent();
+}
+
+// Sube la foto del comprobante (viene como data URL base64) al bucket
+// público "comprobantes" de Supabase Storage y devuelve el link directo.
+async function subirComprobante(base64DataUrl, nombreArchivo){
+  try{
+    const res = await fetch(base64DataUrl);
+    const blob = await res.blob();
+    const { error } = await sb.storage.from('comprobantes').upload(nombreArchivo, blob, { contentType:'image/jpeg', upsert:true });
+    if(error){ console.error('No se pudo subir el comprobante', error); return null; }
+    const { data } = sb.storage.from('comprobantes').getPublicUrl(nombreArchivo);
+    return data.publicUrl;
+  }catch(e){ console.error('No se pudo subir el comprobante', e); return null; }
+}
+async function pushCreateOrder(order){
+  let comprobanteUrl = null;
+  if(order.comprobante){ comprobanteUrl = await subirComprobante(order.comprobante, 'comprobante_'+order.id+'.jpg'); }
+  const row = orderToRow({ ...order, comprobanteUrl });
+  const { error } = await sb.from('pedidos').insert(row);
+  if(error) console.error('No se pudo crear el pedido', error);
+}
+async function pushUpdateOrder(id, patch){
+  const row = {};
+  if(patch.status!==undefined) row.status = patch.status;
+  if(patch.rider!==undefined) row.rider = patch.rider;
+  if(patch.messages!==undefined) row.messages = patch.messages;
+  if(patch.pagoConfirmado!==undefined) row.pago_confirmado = patch.pagoConfirmado;
+  const { error } = await sb.from('pedidos').update(row).eq('id', id);
+  if(error) console.error('No se pudo actualizar el pedido', error);
+}
+async function borrarTodasLasPruebas(){
+  if(!confirm('Esto borra TODOS los pedidos guardados (de prueba y reales) — no se puede deshacer. ¿Continuar?')) return;
+  if(!confirm('Última confirmación: se va a borrar TODO. ¿Seguro?')) return;
+  const { error } = await sb.from('pedidos').delete().neq('id', '__nunca__');
+  if(error){ alert('No se pudo borrar: '+error.message); return; }
+  myOrderIds=[]; localStorage.removeItem('avenida_mis_pedidos'); riderName=''; knownOrderIds=null;
+  alert('Listo, se borró todo.');
+  renderCurrent();
+}
+
+/* ---------- Acceso de personal ---------- */
+// Dueño: entra con correo/contraseña real (Supabase Auth) — el formulario
+// de login se muestra dentro de la pantalla de Dueño (renderDuenoLogin).
+// Repartidor: entra con su PIN individual (tabla "repartidores").
+function tryEnterStaff(targetRole){
+  if(targetRole==='owner'){ setRole('owner'); return; }
+  if(localStorage.getItem('avenida_repartidor_ok')==='1'){ setRole('rider'); return; }
+  entrarComoRepartidor();
+}
+async function entrarComoRepartidor(){
+  const pin = prompt('PIN del repartidor:');
+  if(pin===null) return;
+  const data = await fetchData();
+  const rep = (data.repartidores||[]).find(r=>r.pin===pin && r.activo!==false);
+  if(!rep){ alert('PIN incorrecto.'); return; }
+  riderName = rep.nombre;
+  localStorage.setItem('avenida_repartidor_ok','1');
+  localStorage.setItem('avenida_repartidor_nombre', rep.nombre);
+  setRole('rider');
+}
+function cambiarRepartidor(){
+  riderName='';
+  localStorage.removeItem('avenida_repartidor_ok');
+  localStorage.removeItem('avenida_repartidor_nombre');
+  entrarComoRepartidor();
+}
+async function cerrarAccesoStaff(){
+  await sb.auth.signOut();
+  localStorage.removeItem('avenida_dueno_ok');
+  localStorage.removeItem('avenida_repartidor_ok');
+  localStorage.removeItem('avenida_repartidor_nombre');
+  riderName='';
+  setRole('cliente');
+}
+function irACliente(){
+  if(myOrderIds.length>0) setRole('tracking'); else setRole('cliente');
+}
+
+/* ---------- Fecha ---------- */
+function actualizarFechaHoy(){
+  const hoy = new Date();
+  let texto = hoy.toLocaleDateString('es-DO', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  texto = texto.charAt(0).toUpperCase() + texto.slice(1);
+  document.getElementById('fechaHoy').textContent = '📅 Hoy es ' + texto;
+}
+function formatFecha(ts){
+  const d = new Date(ts);
+  return d.toLocaleDateString('es-DO', { day:'numeric', month:'short' }) + ' · ' + d.toLocaleTimeString('es-DO', { hour:'2-digit', minute:'2-digit' });
+}
+function claveDia(ts){ const d=new Date(ts); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function claveMes(ts){ const d=new Date(ts); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+function capitalizar(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
+function nombreDia(k){ const [y,m,d]=k.split('-').map(Number); return capitalizar(new Date(y,m-1,d).toLocaleDateString('es-DO',{weekday:'long', day:'numeric', month:'long'})); }
+function nombreMes(k){ const [y,m]=k.split('-').map(Number); return capitalizar(new Date(y,m-1,1).toLocaleDateString('es-DO',{month:'long', year:'numeric'})); }
+function inicioSemana(fecha){ const d=new Date(fecha); d.setHours(0,0,0,0); const ds=d.getDay(); d.setDate(d.getDate()-((ds===0)?6:ds-1)); return d.getTime(); }
+
+/* ---------- Instalar app (PWA) ---------- */
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+});
+window.addEventListener('appinstalled', () => { deferredInstallPrompt = null; });
+
+function esIOS(){ return /iphone|ipad|ipod/i.test(navigator.userAgent); }
+function yaInstalada(){ return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; }
+
+async function descargarApp(){
+  if(yaInstalada()){ alert('Ya tienes la app instalada en este dispositivo. Busca el ícono de "Avenida App" en tu pantalla de inicio.'); return; }
+  if(deferredInstallPrompt){
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    return;
+  }
+  if(esIOS()){
+    alert('Para instalar en iPhone: toca el botón "Compartir" (el cuadrito con la flecha hacia arriba, abajo del navegador) y selecciona "Agregar a pantalla de inicio".');
+    return;
+  }
+  alert('Para instalar: busca la opción "Instalar app" o "Agregar a pantalla de inicio" en el menú de tu navegador (los tres puntitos, arriba a la derecha).');
+}
+
+/* ---------- WhatsApp ---------- */
+function waLink(phone, text){
+  const digitos = String(phone||'').replace(/\D/g,'');
+  const conCodigo = digitos.length===10 ? '1'+digitos : digitos;
+  return `https://wa.me/${conCodigo}?text=${encodeURIComponent(text||'')}`;
+}
+function resumenItems(o){ return o.items.map(i=>`${i.cantidad} ${i.nombre}`).join(', '); }
+function vueltoFor(o){ if(!o.pagaCon) return null; return Math.max(0, o.pagaCon - o.total); }
+function waMsg(o, status){
+  const entregaTxt = o.deliveryType==='delivery' ? 'delivery' : 'recoger en el negocio';
+  const transferInfo = o.payMethod==='transferencia'
+    ? ' Paga por transferencia a cualquiera de estas cuentas: ' + CUENTAS_TRANSFERENCIA.map(d => `${d.banco} ${d.numeroCuenta}`).join(' / ') + '.'
+    : '';
+  const map = {
+    recibido: `¡Hola ${o.custName.split(' ')[0]}! Recibimos tu pedido *#${o.shortId}* (${resumenItems(o)}) por RD$${o.total}, ${entregaTxt}.${transferInfo} Te avisamos en cuanto entre a preparación.`,
+    preparando: `¡Tu pedido *#${o.shortId}* está en preparación! 🔥`,
+    listo: o.deliveryType==='delivery' ? `Tu pedido *#${o.shortId}* está listo, buscando motorista 🛵` : `¡Tu pedido *#${o.shortId}* está listo para recoger! 🎉`,
+    en_camino: `${o.rider} va en camino con tu pedido *#${o.shortId}* 🛵💨`,
+    entregado: `Pedido *#${o.shortId}* entregado. ¡Gracias por tu compra!` + (vueltoFor(o)!==null ? ` Te llevamos RD$${vueltoFor(o)} de vuelto.` : ''),
+  };
+  return map[status];
+}
+
+/* ---------- Menú / carrito (cliente) ---------- */
+function setMenuCategoria(val){
+  menuCategoria = val;
+  document.getElementById("catDomingo").classList.toggle("active", val==='domingo');
+  document.getElementById("catSemana").classList.toggle("active", val==='semana');
+  document.getElementById("menuSubtitle").textContent = val==='domingo'
+    ? 'Nuestro menú de domingos — sin llamar, sin esperar.'
+    : 'Los platos del día de esta semana — sin llamar, sin esperar.';
+  renderMenu();
+}
+function renderMenu() {
+  const list = document.getElementById("menuList");
+  list.innerHTML = "";
+  const sinPlatos = MENU.filter(item => item.activo!==false && (item.categoria||'domingo')===menuCategoria).length===0;
+  if(sinPlatos){ list.innerHTML = '<div class="empty">Todavía no hay platos aquí — vuelve a intentar más tarde.</div>'; updateCartBar(); return; }
+  MENU.filter(item => item.activo!==false && (item.categoria||'domingo')===menuCategoria).forEach(item => {
+    const q = cart[item.id] || 0;
+    const card = document.createElement("div");
+    card.className = "item-card" + (q > 0 ? " has-qty" : "");
+    card.id = "card-" + item.id;
+    card.innerHTML = `
+      <div class="item-emoji">${item.emoji}</div>
+      <div class="item-info">
+        <div class="item-name">${item.nombre}</div>
+        <div class="item-tag">${item.tag}</div>
+        <div class="item-price">${money(item.precio)} <span>${item.unidad}</span></div>
+      </div>
+      <div id="ctrl-${item.id}"></div>
+    `;
+    list.appendChild(card);
+    renderCtrl(item.id);
+  });
+  updateCartBar();
+}
+function renderCtrl(id) {
+  const q = cart[id] || 0;
+  const ctrl = document.getElementById("ctrl-" + id);
+  if (q === 0) {
+    ctrl.innerHTML = `<button class="add-btn" onclick="addItem('${id}',1)">Añadir</button>`;
+  } else {
+    ctrl.innerHTML = `<div class="qty-box"><button onclick="addItem('${id}',-1)">−</button><span>${q}</span><button class="plus" onclick="addItem('${id}',1)">+</button></div>`;
+  }
+}
+function addItem(id, delta) {
+  cart[id] = Math.max(0, (cart[id] || 0) + delta);
+  const card = document.getElementById("card-" + id);
+  card.classList.toggle("has-qty", cart[id] > 0);
+  renderCtrl(id);
+  updateCartBar();
+}
+function getItems() {
+  return Object.entries(cart).filter(([, q]) => q > 0).map(([id, q]) => ({ ...MENU.find(m => m.id === id), q }));
+}
+function updateCartBar() {
+  const items = getItems();
+  const total = items.reduce((s, i) => s + i.precio * i.q, 0);
+  const count = items.reduce((s, i) => s + i.q, 0);
+  document.getElementById("cartCount").textContent = count;
+  document.getElementById("cartBarTotal").textContent = money(total);
+  const enMenu = document.getElementById('menuScreen').style.display !== 'none';
+  document.getElementById("cartBar").classList.toggle("show", count > 0 && role==='cliente' && enMenu);
+  document.getElementById("footerHint").style.display = count > 0 ? "none" : "block";
+}
+function goToConfirm() {
+  const items = getItems();
+  const total = items.reduce((s, i) => s + i.precio * i.q, 0);
+  document.getElementById("menuScreen").style.display = "none";
+  document.getElementById("confirmScreen").classList.add("show");
+  document.getElementById("cartBar").classList.remove("show");
+  document.getElementById("cartItems").innerHTML = items.map(i => `
+    <div class="cart-item-row">
+      <div class="cart-item-left"><span class="emoji">${i.emoji}</span><div><div class="cart-item-name">${i.nombre}</div><div class="cart-item-qty">x${i.q}</div></div></div>
+      <span class="cart-item-price">${money(i.precio * i.q)}</span>
+    </div>`).join("");
+  document.getElementById("totalValue").textContent = money(total);
+  onFormChange();
+}
+function goToMenu() {
+  document.getElementById("confirmScreen").classList.remove("show");
+  document.getElementById("menuScreen").style.display = "block";
+  updateCartBar();
+}
+// Redimensiona la foto a un ancho máximo razonable antes de enviarla —
+// una foto de celular sin comprimir puede pesar varios MB, esto la deja
+// en unos cientos de KB sin que se note la diferencia al verla.
+function onComprobanteChange(e){
+  const file = e.target.files[0];
+  const preview = document.getElementById('comprobantePreview');
+  if(!file){ comprobanteBase64 = null; preview.innerHTML=''; return; }
+  const reader = new FileReader();
+  reader.onload = function(ev){
+    const img = new Image();
+    img.onload = function(){
+      const maxAncho = 1000;
+      const escala = Math.min(1, maxAncho / img.width);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * escala);
+      canvas.height = Math.round(img.height * escala);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      comprobanteBase64 = canvas.toDataURL('image/jpeg', 0.72);
+      preview.innerHTML = `<img src="${comprobanteBase64}" style="max-width:160px;border-radius:10px;border:1px solid #2c241d;display:block;">`;
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function shareLocation(){
+  const box = document.getElementById('locStatus');
+  if(!navigator.geolocation){ box.innerHTML = '<span style="color:#e8901f;">Tu navegador no soporta ubicación. Escribe la dirección.</span>'; return; }
+  box.textContent = 'Obteniendo tu ubicación...';
+  navigator.geolocation.getCurrentPosition(
+    (pos)=>{
+      clientLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      box.innerHTML = `<span style="color:#3ac97a;font-weight:600;">✓ Ubicación capturada — <a href="https://www.google.com/maps?q=${clientLocation.lat},${clientLocation.lng}" target="_blank" style="color:#3ac97a;">ver en el mapa</a></span>`;
+    },
+    ()=>{
+      clientLocation = null;
+      box.innerHTML = '<span style="color:#e8901f;">No se pudo obtener tu ubicación. Permite el acceso o escribe la dirección.</span>';
+    },
+    { enableHighAccuracy:true, timeout:10000 }
+  );
+}
+function setEntrega(val) {
+  entrega = val;
+  document.getElementById("entregaDelivery").classList.toggle("active", val === "delivery");
+  document.getElementById("entregaPickup").classList.toggle("active", val === "pickup");
+  document.getElementById("addrBlock").style.display = val === "delivery" ? "" : "none";
+}
+function textoDatosTransferencia(){
+  const cuentas = CUENTAS_TRANSFERENCIA.map(d =>
+    `🏦 <b>${d.banco}</b><br>${d.tipoCuenta} · Cuenta: <b>${d.numeroCuenta}</b><br>A nombre de: ${d.titular}`
+  ).join('<hr style="border:none;border-top:1px solid #2c241d;margin:10px 0;">');
+  return `${cuentas}<br><br>Transfiere por el total del pedido a cualquiera de estas cuentas (la que uses tú) — puedes poner el número de confirmación abajo (opcional) para que sea más fácil verificarla.`;
+}
+function setPayMethod(val){
+  payMethod = val;
+  document.getElementById("payEfectivo").classList.toggle("active", val === "efectivo");
+  document.getElementById("payTransferencia").classList.toggle("active", val === "transferencia");
+  document.getElementById("cashBlock").style.display = val === "efectivo" ? "" : "none";
+  document.getElementById("transferBlock").style.display = val === "transferencia" ? "" : "none";
+  if(val === "transferencia"){ document.getElementById("datosTransferenciaBox").innerHTML = textoDatosTransferencia(); }
+}
+function onFormChange(){
+  const nombre = document.getElementById('nombreInput').value.trim();
+  const phone = document.getElementById('phoneInput').value.trim();
+  const addr = document.getElementById('addrInput').value.trim();
+  const listo = nombre.length>0 && phone.length>0 && (entrega==='pickup' || addr.length>0);
+  document.getElementById('sendBtn').classList.toggle('ready', listo);
+}
+
+async function sendOrder(){
+  const nombre = document.getElementById('nombreInput').value.trim();
+  const phone = document.getElementById('phoneInput').value.trim();
+  const addr = document.getElementById('addrInput').value.trim();
+  const pagaConVal = document.getElementById('pagaConInput').value;
+  const pagaCon = payMethod==='efectivo' && pagaConVal ? Number(pagaConVal) : null;
+  const referencia = document.getElementById('referenciaInput').value.trim();
+  if(!nombre || !phone){ alert('Completa tu nombre y tu WhatsApp.'); return; }
+  if(entrega==='delivery' && !addr){ alert('Escribe la dirección de entrega.'); return; }
+  const items = getItems();
+  if(items.length===0){ alert('Tu carrito está vacío.'); return; }
+  const total = items.reduce((s,i)=>s+i.precio*i.q,0);
+  const id = 'ord_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+  const shortId = Math.floor(1000+Math.random()*9000);
+  const order = {
+    id, shortId, custName:nombre, phone,
+    items: items.map(i=>({id:i.id,nombre:i.nombre,precio:i.precio,cantidad:i.q,emoji:i.emoji})),
+    total, deliveryType:entrega, addr: entrega==='delivery'?addr:null,
+    location: entrega==='delivery' ? clientLocation : null, pagaCon,
+    payMethod, referencia: referencia||null, pagoConfirmado: payMethod==='efectivo',
+    comprobante: payMethod==='transferencia' ? comprobanteBase64 : null,
+    status:'recibido', rider:null, createdAt: Date.now(), messages: []
+  };
+  order.messages.push({ text: waMsg(order,'recibido'), at: Date.now() });
+  await pushCreateOrder(order);
+  myOrderIds.push(id);
+  myOrderIds = myOrderIds.slice(-20);
+  localStorage.setItem('avenida_mis_pedidos', JSON.stringify(myOrderIds));
+  cart = {};
+  document.getElementById('nombreInput').value='';
+  document.getElementById('phoneInput').value='';
+  document.getElementById('addrInput').value='';
+  document.getElementById('pagaConInput').value='';
+  document.getElementById('referenciaInput').value='';
+  document.getElementById('comprobanteInput').value='';
+  document.getElementById('comprobantePreview').innerHTML='';
+  comprobanteBase64 = null;
+  document.getElementById('locStatus').innerHTML='';
+  clientLocation = null;
+  setPayMethod('efectivo');
+  document.getElementById("confirmScreen").classList.remove("show");
+  document.getElementById("sentScreen").classList.add("show");
+  const notaPago = order.payMethod==='transferencia' ? ' Recuerda hacer la transferencia con los datos que te mostramos si aún no lo has hecho.' : '';
+  document.getElementById("sentText").textContent =
+    `Gracias, ${nombre}. Tu pedido de ${money(total)} (${entrega==='delivery'?'delivery':'para recoger'}) ya está en el negocio — te confirman en minutos, sin que tengas que llamar ni esperar en línea.${notaPago}`;
+}
+
+/* ---------- Seguimiento (cliente) ---------- */
+function renderTracking(data){
+  const el = document.getElementById('trackingScreen');
+  const mine = data.orders.filter(o=>myOrderIds.includes(o.id)).sort((a,b)=>b.createdAt-a.createdAt);
+  const otroPedidoBtn = '<div style="text-align:right;margin-bottom:12px;"><button onclick="setRole(\'cliente\')" style="border:none;background:none;color:#e8901f;font-size:12px;font-weight:700;text-decoration:underline;">➕ Hacer otro pedido</button></div>';
+  if(mine.length===0){ el.innerHTML = otroPedidoBtn + '<div class="empty">Aún no has enviado un pedido.</div>'; return; }
+  el.innerHTML = otroPedidoBtn + mine.map(o=>{
+    const vuelto = vueltoFor(o);
+    return `<div class="order-card">
+      <div class="oid">Pedido #${o.shortId} · ${formatFecha(o.createdAt)}</div>
+      <span class="badge ${o.status}">${STATUS_LABEL[o.status]||o.status}</span>
+      <h3>${money(o.total)}</h3>
+      ${o.items.map(i=>`<div class="item-line"><span>${i.emoji} ${i.nombre} x${i.cantidad}</span><span>${money(i.precio*i.cantidad)}</span></div>`).join('')}
+      ${o.pagaCon?`<div class="m-cash">💵 Pagas con ${money(o.pagaCon)}${vuelto!==null?` — te llevamos ${money(vuelto)} de vuelto`:''}</div>`:''}
+      ${o.payMethod==='transferencia' ? (o.pagoConfirmado ? `<div class="m-cash">🏦 Pago por transferencia confirmado ✅</div>` : `<div class="m-cash" style="color:#e8b23a;">🏦 Pago por transferencia — esperando confirmación del negocio</div>`) : ''}
+      ${o.comprobanteUrl ? `<div class="m-cash">🧾 Comprobante enviado</div>` : ''}
+      ${o.rider?`<div style="font-size:11.5px;color:#8a7a67;margin-top:6px;">🛵 Repartidor: ${o.rider}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+/* ---------- Dueño ---------- */
+function ownerTabsHtml(){
+  return `<div class="role-tabs">
+    <button class="${ownerTab==='pedidos'?'active':''}" onclick="ownerTab='pedidos';renderCurrent()">Pedidos</button>
+    <button class="${ownerTab==='menu'?'active':''}" onclick="ownerTab='menu';renderCurrent()">Menú</button>
+    <button class="${ownerTab==='bancos'?'active':''}" onclick="ownerTab='bancos';renderCurrent()">Bancos</button>
+    <button class="${ownerTab==='repartidores'?'active':''}" onclick="ownerTab='repartidores';renderCurrent()">Reparto</button>
+    <button class="${ownerTab==='ingresos'?'active':''}" onclick="ownerTab='ingresos';renderCurrent()">Ingresos</button>
+  </div>
+  <div class="staff-actions">
+    <button onclick="borrarTodasLasPruebas()">🗑️ Borrar todo</button>
+    <button onclick="cerrarAccesoStaff()">🔒 Cerrar acceso</button>
+  </div>` + (showNewOrderFlash ? `<div class="new-order-flash">🔔 ¡Nuevo pedido recibido!</div>` : '');
+}
+function renderDuenoLogin(){
+  const el = document.getElementById('ownerScreen');
+  el.dataset.vista = 'login'; el.dataset.snapshot = '';
+  el.innerHTML = `
+    <div class="staff-name-box">
+      <h3 style="font-size:16px;margin-bottom:12px;">Acceso del Dueño</h3>
+      <label class="field-label">Correo</label>
+      <input class="field-input" id="duenoEmailInput" type="email" placeholder="correo@ejemplo.com" autocomplete="username">
+      <label class="field-label">Contraseña</label>
+      <input class="field-input" id="duenoPasswordInput" type="password" placeholder="Contraseña" autocomplete="current-password">
+      <div id="duenoLoginError" style="color:#e8901f;font-size:12px;margin:-8px 0 12px;"></div>
+      <button class="btn-block orange" onclick="entrarComoDueno()">Entrar</button>
+    </div>
+    <div class="staff-actions"><button onclick="setRole('cliente')">← Volver</button></div>`;
+}
+async function entrarComoDueno(){
+  const email = document.getElementById('duenoEmailInput').value.trim();
+  const password = document.getElementById('duenoPasswordInput').value;
+  const errorBox = document.getElementById('duenoLoginError');
+  if(!email || !password){ errorBox.textContent = 'Completa correo y contraseña.'; return; }
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if(error){ errorBox.textContent = 'Correo o contraseña incorrectos.'; return; }
+  renderCurrent();
+}
+function playBeep(){
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const o = ctx.createOscillator(); const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type='sine'; o.frequency.value = 880; g.gain.value = 0.18;
+    o.start(); setTimeout(()=>{ o.stop(); ctx.close(); }, 250);
+  }catch(e){}
+}
+function checkNewOrders(data){
+  if(knownOrderIds===null){ knownOrderIds = new Set(data.orders.map(o=>o.id)); return; }
+  let hayNuevo=false;
+  data.orders.forEach(o=>{ if(!knownOrderIds.has(o.id)){ hayNuevo=true; knownOrderIds.add(o.id); } });
+  if(hayNuevo){
+    showNewOrderFlash = true;
+    playBeep();
+    setTimeout(()=>{ showNewOrderFlash=false; if(role==='owner') renderCurrent(); }, 4000);
+  }
+}
+function renderOwner(data){
+  if(!duenoAutenticado){ renderDuenoLogin(); return; }
+  if(ownerTab==='ingresos') renderOwnerIngresos(data);
+  else if(ownerTab==='menu') renderOwnerMenu(data);
+  else if(ownerTab==='bancos') renderOwnerBancos(data);
+  else if(ownerTab==='repartidores') renderOwnerRepartidores(data);
+  else renderOwnerPedidos(data);
+}
+function renderOwnerRepartidores(data){
+  const el = document.getElementById('ownerScreen');
+  el.dataset.vista='repartidores'; el.dataset.snapshot='';
+  const tabs = ownerTabsHtml();
+  const reps = data.repartidores || [];
+  const listaHtml = reps.length===0 ? '<div class="empty">Aún no hay repartidores — agrega el primero abajo.</div>' : reps.map(r=>`
+    <div class="order-card">
+      <input class="field-input" id="rep_nombre_${r.id}" value="${(r.nombre||'').replace(/"/g,'&quot;')}" placeholder="Nombre del repartidor">
+      <input class="field-input" id="rep_pin_${r.id}" value="${(r.pin||'').replace(/"/g,'&quot;')}" placeholder="PIN">
+      <div style="display:flex;gap:8px;">
+        <button class="btn-block orange" style="flex:1;margin-top:0;" onclick="guardarRepartidor('${r.id}')">💾 Guardar</button>
+        <button class="btn-block" style="flex:1;margin-top:0;background:${r.activo===false?'#2a2119':'#3a2f26'};" onclick="alternarActivoRepartidor('${r.id}', ${r.activo!==false})">${r.activo===false?'👁️ Activar':'🙈 Desactivar'}</button>
+      </div>
+      <button class="btn-block wine" onclick="eliminarRepartidor('${r.id}','${(r.nombre||'').replace(/'/g,"\\'")}')">🗑️ Borrar</button>
+    </div>`).join('');
+  el.innerHTML = tabs + `
+    <p style="font-size:12px;color:#8a7a67;margin-bottom:14px;line-height:1.5;">Cada repartidor entra con su propio PIN — así sabes quién es quién. "Desactivar" bloquea su PIN sin borrar su historial de entregas.</p>
+    ${listaHtml}
+    <div class="order-card" style="border-color:#e8901f;">
+      <h3 style="font-size:14px;margin-bottom:10px;">➕ Agregar repartidor nuevo</h3>
+      <input class="field-input" id="nuevo_rep_nombre" placeholder="Nombre">
+      <input class="field-input" id="nuevo_rep_pin" placeholder="PIN (ej: 4 dígitos)">
+      <button class="btn-block orange" onclick="agregarRepartidorNuevo()">Agregar repartidor</button>
+    </div>`;
+}
+function renderOwnerBancos(data){
+  const el = document.getElementById('ownerScreen');
+  el.dataset.vista='bancos'; el.dataset.snapshot='';
+  const tabs = ownerTabsHtml();
+  const cuentas = data.cuentas || [];
+  const listaHtml = cuentas.length===0 ? '<div class="empty">Aún no hay cuentas — agrega la primera abajo.</div>' : cuentas.map(c=>`
+    <div class="order-card">
+      <input class="field-input" id="cta_banco_${c.id}" value="${(c.banco||'').replace(/"/g,'&quot;')}" placeholder="Nombre del banco">
+      <input class="field-input" id="cta_tipo_${c.id}" value="${(c.tipoCuenta||'').replace(/"/g,'&quot;')}" placeholder="Tipo de cuenta (ej: Ahorros)">
+      <input class="field-input" id="cta_numero_${c.id}" value="${(c.numeroCuenta||'').replace(/"/g,'&quot;')}" placeholder="Número de cuenta">
+      <input class="field-input" id="cta_titular_${c.id}" value="${(c.titular||'').replace(/"/g,'&quot;')}" placeholder="Nombre del titular">
+      <button class="btn-block orange" onclick="guardarCuenta('${c.id}')">💾 Guardar</button>
+      <button class="btn-block wine" onclick="eliminarCuenta('${c.id}','${(c.banco||'').replace(/'/g,"\\'")}')">🗑️ Borrar cuenta</button>
+    </div>`).join('');
+  el.innerHTML = tabs + `
+    <p style="font-size:12px;color:#8a7a67;margin-bottom:14px;line-height:1.5;">Estas son las cuentas que se le muestran al cliente cuando elige pagar por transferencia. Pon aquí los datos reales del negocio.</p>
+    ${listaHtml}
+    <div class="order-card" style="border-color:#e8901f;">
+      <h3 style="font-size:14px;margin-bottom:10px;">➕ Agregar cuenta nueva</h3>
+      <input class="field-input" id="nueva_cta_banco" placeholder="Nombre del banco">
+      <input class="field-input" id="nueva_cta_tipo" placeholder="Tipo de cuenta (ej: Ahorros)">
+      <input class="field-input" id="nueva_cta_numero" placeholder="Número de cuenta">
+      <input class="field-input" id="nueva_cta_titular" placeholder="Nombre del titular">
+      <button class="btn-block orange" onclick="agregarCuentaNueva()">Agregar cuenta</button>
+    </div>`;
+}
+function setOwnerMenuCategoria(val){
+  ownerMenuCategoria = val;
+  renderCurrent();
+}
+function renderOwnerMenu(data){
+  const el = document.getElementById('ownerScreen');
+  el.dataset.vista='menu'; el.dataset.snapshot='';
+  const tabs = ownerTabsHtml();
+  const todos = data.menu || [];
+  const items = todos.filter(m => (m.categoria||'domingo') === ownerMenuCategoria);
+  const catTabs = `<div class="role-tabs">
+    <button class="${ownerMenuCategoria==='domingo'?'active':''}" onclick="setOwnerMenuCategoria('domingo')">🍖 Domingos</button>
+    <button class="${ownerMenuCategoria==='semana'?'active':''}" onclick="setOwnerMenuCategoria('semana')">🍛 Entre semana</button>
+  </div>`;
+  const listaHtml = items.length===0 ? '<div class="empty">Aún no hay platos en esta categoría — agrega el primero abajo.</div>' : items.map(m=>`
+    <div class="order-card">
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <input class="field-input" style="width:52px;text-align:center;margin-bottom:0;" id="art_emoji_${m.id}" value="${m.emoji||''}">
+        <input class="field-input" style="flex:1;margin-bottom:0;" id="art_nombre_${m.id}" value="${(m.nombre||'').replace(/"/g,'&quot;')}" placeholder="Nombre">
+      </div>
+      <input class="field-input" id="art_tag_${m.id}" value="${(m.tag||'').replace(/"/g,'&quot;')}" placeholder="Etiqueta (ej: El favorito)">
+      <div style="display:flex;gap:8px;">
+        <input class="field-input" style="flex:1;" type="number" id="art_precio_${m.id}" value="${m.precio}" placeholder="Precio RD$">
+        <input class="field-input" style="flex:1;" id="art_unidad_${m.id}" value="${(m.unidad||'').replace(/"/g,'&quot;')}" placeholder="Unidad (ej: por libra)">
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-block orange" style="flex:1;margin-top:0;" onclick="guardarArticulo('${m.id}')">💾 Guardar</button>
+        <button class="btn-block" style="flex:1;margin-top:0;background:${m.activo===false?'#2a2119':'#3a2f26'};" onclick="alternarActivo('${m.id}', ${m.activo!==false})">${m.activo===false?'👁️ Mostrar':'🙈 Ocultar'}</button>
+      </div>
+      <button class="btn-block wine" onclick="eliminarArticulo('${m.id}','${(m.nombre||'').replace(/'/g,"\\'")}')">🗑️ Borrar del menú</button>
+    </div>`).join('');
+  el.innerHTML = tabs + catTabs + `
+    <p style="font-size:12px;color:#8a7a67;margin-bottom:14px;line-height:1.5;">Edita el nombre, precio o descripción de cada plato y dale "Guardar". "Ocultar" lo quita del menú del cliente sin borrar el historial de pedidos.</p>
+    ${listaHtml}
+    <div class="order-card" style="border-color:#e8901f;">
+      <h3 style="font-size:14px;margin-bottom:2px;">➕ Agregar plato nuevo</h3>
+      <p style="font-size:11px;color:#8a7a67;margin-bottom:10px;">Se agrega a "${ownerMenuCategoria==='domingo'?'Domingos':'Entre semana'}" — cambia de pestaña arriba si querías la otra.</p>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <input class="field-input" style="width:52px;text-align:center;margin-bottom:0;" id="nuevo_emoji" placeholder="🍽️">
+        <input class="field-input" style="flex:1;margin-bottom:0;" id="nuevo_nombre" placeholder="Nombre del plato" oninput="sugerirEtiquetaAuto()">
+      </div>
+      <input class="field-input" id="nuevo_tag" placeholder="Etiqueta (se sugiere sola según el nombre)" oninput="this.dataset.auto=''">
+      <div style="display:flex;gap:8px;">
+        <input class="field-input" style="flex:1;" type="number" id="nuevo_precio" placeholder="Precio RD$">
+        <input class="field-input" style="flex:1;" id="nuevo_unidad" placeholder="Unidad (ej: por plato)">
+      </div>
+      <button class="btn-block orange" onclick="agregarArticuloNuevo()">Agregar al menú</button>
+    </div>`;
+}
+// Crea un mapa chiquito (Leaflet + OpenStreetMap) en cada tarjeta de
+// pedido que tenga ubicación — se recrea en cada actualización porque el
+// innerHTML de la tarjeta se reconstruye completo cada vez.
+function inicializarMapasPedidos(pedidos, prefijo){
+  if(typeof L === 'undefined') return;
+  prefijo = prefijo || 'mapa_';
+  pedidos.forEach(o=>{
+    if(!o.location) return;
+    const contenedor = document.getElementById(prefijo+o.id);
+    if(!contenedor || contenedor.dataset.listo) return;
+    contenedor.dataset.listo = '1';
+    try{
+      const mapa = L.map(contenedor, { zoomControl:false, attributionControl:true }).setView([o.location.lat, o.location.lng], 16);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OpenStreetMap', maxZoom:19 }).addTo(mapa);
+      L.marker([o.location.lat, o.location.lng]).addTo(mapa);
+    }catch(e){ console.error('No se pudo cargar el mapa', e); }
+  });
+}
+
+// Un solo mapa con un pin por cada entrega activa que tenga ubicación,
+// para ver de un vistazo dónde está todo (en vez de abrir pedido por pedido).
+function inicializarMapaGeneral(pedidosConUbicacion){
+  if(typeof L === 'undefined') return;
+  const contenedor = document.getElementById('mapaGeneral');
+  if(!contenedor || contenedor.dataset.listo) return;
+  contenedor.dataset.listo = '1';
+  try{
+    const mapa = L.map(contenedor, { zoomControl:true, attributionControl:true });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OpenStreetMap', maxZoom:19 }).addTo(mapa);
+    const puntos = pedidosConUbicacion.map(o=>{
+      const marcador = L.marker([o.location.lat, o.location.lng]).addTo(mapa);
+      marcador.bindPopup(`<b>#${o.shortId} · ${o.custName}</b><br>${STATUS_LABEL[o.status]||o.status} · ${money(o.total)}`);
+      return [o.location.lat, o.location.lng];
+    });
+    if(puntos.length===1){ mapa.setView(puntos[0], 15); }
+    else { mapa.fitBounds(puntos, { padding:[24,24] }); }
+  }catch(e){ console.error('No se pudo cargar el mapa general', e); }
+}
+
+function renderOwnerPedidos(data){
+  const el = document.getElementById('ownerScreen');
+  const activos = data.orders.filter(o=>o.status!=='entregado'&&o.status!=='cancelado').sort((a,b)=>a.createdAt-b.createdAt);
+  // Si nada cambió desde el último refresco, no se reconstruye la pantalla —
+  // así el mapa embebido no se recarga y "parpadea" cada 2.5 segundos.
+  const snapshot = JSON.stringify(activos) + '|' + showNewOrderFlash;
+  if(el.dataset.vista==='pedidos' && el.dataset.snapshot===snapshot) return;
+  el.dataset.vista='pedidos';
+  el.dataset.snapshot=snapshot;
+  const tabs = ownerTabsHtml();
+  if(activos.length===0){ el.innerHTML = tabs + '<div class="empty">No hay pedidos activos.</div>'; return; }
+  const conUbicacion = activos.filter(o=>o.location && o.status!=='entregado');
+  const mapaGeneralHtml = conUbicacion.length>0
+    ? `<div style="margin-bottom:14px;">
+         <div style="font-size:11px;font-weight:700;color:#8a7a67;text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px;">🗺️ Todas las entregas activas</div>
+         <div class="mini-map" id="mapaGeneral" style="height:220px;"></div>
+       </div>`
+    : '';
+  el.innerHTML = tabs + mapaGeneralHtml + activos.map(o=>{
+    let accion='';
+    if(o.status==='recibido'){
+      accion = `<button class="btn-block orange" onclick="advance('${o.id}','')">Aceptar y preparar →</button>`;
+    } else if(o.status==='preparando'){
+      accion = `<button class="btn-block orange" onclick="advance('${o.id}','')">Marcar listo →</button>`;
+    } else if(o.status==='listo' && o.deliveryType==='delivery'){
+      const riderInputId = 'rider_'+o.id;
+      accion = `<div class="assign-row"><input class="field-input" style="margin-bottom:0;" type="text" id="${riderInputId}" placeholder="Nombre del motorista"><button class="btn-block orange" style="width:auto;margin-top:0;padding:10px 14px;" onclick="advance('${o.id}', document.getElementById('${riderInputId}').value.trim())">Asignar</button></div>`;
+    } else if(o.status==='listo'){
+      accion = `<button class="btn-block orange" onclick="advance('${o.id}','')">Marcar entregado →</button>`;
+    } else if(o.status==='en_camino'){
+      accion = `<span class="badge en_camino">En camino con ${o.rider}</span>`;
+    }
+    const ultimoMsg = o.messages && o.messages.length ? o.messages[o.messages.length-1].text : waMsg(o,'recibido');
+    return `<div class="order-card">
+      <div class="oid">#${o.shortId} · ${o.custName} · ${o.phone} · ${formatFecha(o.createdAt)}</div>
+      <span class="badge ${o.status}">${STATUS_LABEL[o.status]||o.status}</span>
+      <div style="font-size:11px;color:#6f6153;margin-bottom:6px;">${o.deliveryType==='delivery'?'🛵 Delivery — '+o.addr:'📍 Recoger en el negocio'}</div>
+      ${o.location ? `<div class="mini-map" id="mapa_${o.id}"></div><a class="btn-block" style="background:#3a2f26;margin-top:0;" href="https://www.google.com/maps?q=${o.location.lat},${o.location.lng}" target="_blank">🧭 Cómo llegar</a>` : ''}
+      ${o.items.map(i=>`<div class="item-line"><span>${i.emoji} ${i.nombre} x${i.cantidad}</span><span>${money(i.precio*i.cantidad)}</span></div>`).join('')}
+      <div style="font-weight:700;margin:8px 0 0;">Total: ${money(o.total)}</div>
+      ${o.pagaCon?`<div class="m-cash">💵 Paga con ${money(o.pagaCon)} → llevar vuelto ${money(vueltoFor(o))}</div>`:''}
+      ${o.payMethod==='transferencia' ? (o.pagoConfirmado
+        ? `<div class="m-cash">🏦 Transferencia — ✅ pago confirmado${o.referencia?` (ref: ${o.referencia})`:''}</div>`
+        : `<div class="m-cash" style="color:#e8b23a;">🏦 Transferencia — ⏳ pendiente de confirmar${o.referencia?` (ref: ${o.referencia})`:''}</div>
+           <button class="btn-block" style="background:#1a3a24;color:#7fbf6a;" onclick="confirmarPago('${o.id}')">✅ Marcar pago recibido</button>`) : ''}
+      ${o.comprobanteUrl ? `<a class="btn-block" style="background:#3a2f26;" href="${o.comprobanteUrl}" target="_blank">🧾 Ver comprobante</a>` : ''}
+      ${accion}
+      <a class="btn-block wa" href="${waLink(o.phone, ultimoMsg)}" target="_blank">📲 Enviar WhatsApp al cliente</a>
+    </div>`;
+  }).join('');
+  inicializarMapaGeneral(conUbicacion);
+  inicializarMapasPedidos(activos);
+}
+function renderOwnerIngresos(data){
+  const el = document.getElementById('ownerScreen');
+  el.dataset.vista='ingresos'; el.dataset.snapshot='';
+  const tabs = ownerTabsHtml();
+  const entregados = data.orders.filter(o=>o.status==='entregado');
+
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const inicioMesTs = new Date(hoy.getFullYear(), hoy.getMonth(), 1).getTime();
+  const totalHoy = entregados.filter(o=>o.createdAt>=hoy.getTime()).reduce((s,o)=>s+(o.total||0),0);
+  const totalSemana = entregados.filter(o=>o.createdAt>=inicioSemana(hoy)).reduce((s,o)=>s+(o.total||0),0);
+  const totalMes = entregados.filter(o=>o.createdAt>=inicioMesTs).reduce((s,o)=>s+(o.total||0),0);
+  const totalGeneral = entregados.reduce((s,o)=>s+(o.total||0),0);
+
+  const meses = [...new Set(entregados.map(o=>claveMes(o.createdAt)))].sort().reverse();
+  const selMes = document.getElementById('filtroMesIngresos') ? document.getElementById('filtroMesIngresos').value : '';
+  const selDia = document.getElementById('filtroDiaIngresos') ? document.getElementById('filtroDiaIngresos').value : '';
+
+  const filtroHtml = `<div class="filters-row">
+    <select id="filtroMesIngresos" onchange="renderCurrent()">
+      <option value="">Todos los meses</option>
+      ${meses.map(m=>`<option value="${m}" ${m===selMes?'selected':''}>${nombreMes(m)}</option>`).join('')}
+    </select>
+    <input type="date" id="filtroDiaIngresos" value="${selDia}" onchange="renderCurrent()">
+    ${(selMes||selDia) ? `<button class="btn-block" style="flex:0;margin-top:0;padding:9px 14px;background:#3a2f26;" onclick="document.getElementById('filtroMesIngresos').value='';document.getElementById('filtroDiaIngresos').value='';renderCurrent()">✕</button>` : ''}
+  </div>`;
+
+  let contenido = '';
+  if(selDia){
+    const delDia = entregados.filter(o=>claveDia(o.createdAt)===selDia);
+    const total = delDia.reduce((s,o)=>s+(o.total||0),0);
+    contenido = `<div class="order-card">
+      <h3 style="margin:2px 0 4px;">${money(total)}</h3>
+      <div style="font-size:11.5px;color:#8a7a67;margin-bottom:10px;">${delDia.length} pedido${delDia.length===1?'':'s'} entregado${delDia.length===1?'':'s'} ese día</div>
+      ${delDia.map(o=>`<div class="item-line"><span>${o.custName} · #${o.shortId}</span><span>${money(o.total)}</span></div>`).join('')}
+    </div>`;
+  } else {
+    const grupos = {};
+    entregados.forEach(o=>{
+      if(selMes && claveMes(o.createdAt)!==selMes) return;
+      const k=claveDia(o.createdAt);
+      (grupos[k]=grupos[k]||[]).push(o);
+    });
+    const dias = Object.keys(grupos).sort().reverse();
+    contenido = dias.length===0 ? '' : dias.map(k=>{
+      const pedidosDia = grupos[k]; const totalDia = pedidosDia.reduce((s,o)=>s+(o.total||0),0);
+      return `<div class="day-card">
+        <div class="head"><b>${nombreDia(k)}</b><span>${money(totalDia)}</span></div>
+        <div class="sub">${pedidosDia.length} pedido${pedidosDia.length===1?'':'s'}</div>
+        ${pedidosDia.map(o=>`<div class="item-line"><span>${o.custName} · #${o.shortId}</span><span>${money(o.total)}</span></div>`).join('')}
+      </div>`;
+    }).join('');
+  }
+  if(!contenido) contenido = '<div class="empty">No hay ventas entregadas en ese rango.</div>';
+
+  el.innerHTML = tabs + `<div class="stats-grid">
+    <div class="stat-box"><div class="num">${money(totalHoy)}</div><div class="lbl">Hoy</div></div>
+    <div class="stat-box"><div class="num">${money(totalSemana)}</div><div class="lbl">Esta semana</div></div>
+    <div class="stat-box"><div class="num">${money(totalMes)}</div><div class="lbl">Este mes</div></div>
+    <div class="stat-box"><div class="num">${money(totalGeneral)}</div><div class="lbl">Histórico</div></div>
+  </div>${filtroHtml}${contenido}`;
+}
+async function confirmarPago(id){
+  await pushUpdateOrder(id, { pagoConfirmado: true });
+  renderCurrent();
+}
+async function advance(id, riderVal){
+  const data = await fetchData();
+  const o = data.orders.find(x=>x.id===id);
+  let next;
+  if(o.status==='recibido') next='preparando';
+  else if(o.status==='preparando') next='listo';
+  else if(o.status==='listo') next = o.deliveryType==='delivery' ? 'en_camino' : 'entregado';
+  else if(o.status==='en_camino') next='entregado';
+  if(!next) return;
+  let rider = o.rider;
+  if(next==='en_camino'){
+    if(!riderVal){ alert('Escribe el nombre del motorista.'); return; }
+    rider = riderVal;
+  }
+  const messages = [...o.messages, { text: waMsg({...o, rider}, next), at: Date.now() }];
+  await pushUpdateOrder(id, { status:next, rider, messages });
+  renderCurrent();
+}
+
+/* ---------- Repartidor ---------- */
+function renderRider(data){
+  const el = document.getElementById('riderScreen');
+  if(!riderName){
+    el.dataset.vista='sin-pin'; el.dataset.snapshot='';
+    el.innerHTML = `<div class="staff-name-box"><p style="font-size:12.5px;color:#8a7a67;margin-bottom:10px;">Ingresa tu PIN de repartidor para ver tus entregas.</p><button class="btn-block orange" onclick="entrarComoRepartidor()">Ingresar PIN</button></div>
+      <div class="staff-actions"><button onclick="cerrarAccesoStaff()">🔒 Cerrar acceso</button></div>`;
+    return;
+  }
+  const mine = data.orders.filter(o=>normalizarNombre(o.rider)===normalizarNombre(riderName) && o.status==='en_camino');
+  // Igual que en Pedidos: si nada cambió, no se reconstruye (evita que el mapa parpadee).
+  const snapshot = riderName + '|' + JSON.stringify(mine);
+  if(el.dataset.vista==='repartidor' && el.dataset.snapshot===snapshot) return;
+  el.dataset.vista='repartidor';
+  el.dataset.snapshot=snapshot;
+  el.innerHTML = `<div class="staff-name-box" style="display:flex;align-items:center;justify-content:space-between;">
+      <span>Repartidor: <b>${riderName}</b></span>
+      <button class="btn-block wine" style="width:auto;margin-top:0;padding:8px 12px;" onclick="cambiarRepartidor()">Cambiar</button>
+    </div>
+    <div class="staff-actions"><button onclick="cerrarAccesoStaff()">🔒 Cerrar acceso</button></div>` +
+    (mine.length===0 ? '<div class="empty">No tienes entregas asignadas ahora mismo.</div>' : mine.map(o=>`
+      <div class="order-card">
+        <b>${o.custName}</b>
+        <div style="font-size:11.5px;color:#8a7a67;margin:4px 0 8px;">${o.addr||''} · ${o.phone}</div>
+        ${o.location ? `<div class="mini-map" id="mapa_r_${o.id}"></div><a class="btn-block" style="background:#3a2f26;margin-top:0;" href="https://www.google.com/maps?q=${o.location.lat},${o.location.lng}" target="_blank">🧭 Cómo llegar</a>` : ''}
+        ${o.items.map(i=>`<div class="item-line"><span>${i.emoji} ${i.nombre} x${i.cantidad}</span><span>${money(i.precio*i.cantidad)}</span></div>`).join('')}
+        <div style="font-weight:700;margin:8px 0 0;">${money(o.total)}</div>
+        ${o.pagaCon?`<div class="m-cash">💵 Lleva vuelto: ${money(vueltoFor(o))} (paga con ${money(o.pagaCon)})</div>`:''}
+        <a class="btn-block wa" href="${waLink(o.phone, '¡Voy en camino con tu pedido #'+o.shortId+'! 🛵')}" target="_blank">📲 Avisar por WhatsApp</a>
+        <button class="btn-block orange" onclick="advance('${o.id}','')">Marcar entregado</button>
+      </div>`).join(''));
+  inicializarMapasPedidos(mine, 'mapa_r_');
+}
+
+/* ---------- Enrutamiento de roles ---------- */
+function setRole(r){
+  role = r;
+  document.getElementById('btnCliente').classList.toggle('active', r==='cliente'||r==='tracking');
+  document.getElementById('btnDueno').classList.toggle('active', r==='owner');
+  document.getElementById('btnRepartidor').classList.toggle('active', r==='rider');
+
+  document.getElementById('menuScreen').style.display = r==='cliente' ? 'block' : 'none';
+  document.getElementById('confirmScreen').classList.remove('show');
+  document.getElementById('sentScreen').classList.remove('show');
+  document.getElementById('trackingScreen').classList.toggle('show', r==='tracking');
+  document.getElementById('ownerScreen').classList.toggle('show', r==='owner');
+  document.getElementById('riderScreen').classList.toggle('show', r==='rider');
+
+  if(r==='cliente'){ cart = {}; renderMenu(); }
+  updateCartBar();
+  renderCurrent();
+}
+
+function hayInputActivoEn(contenedorId){
+  const el = document.activeElement;
+  const contenedor = document.getElementById(contenedorId);
+  return !!(el && contenedor && (el.tagName==='INPUT'||el.tagName==='TEXTAREA'||el.tagName==='SELECT') && contenedor.contains(el));
+}
+
+async function renderCurrent(){
+  const data = await fetchData();
+  if(data.menu && data.menu.length){ MENU = data.menu; }
+  if(data.cuentas && data.cuentas.length){ CUENTAS_TRANSFERENCIA = data.cuentas; }
+  if(role==='owner') checkNewOrders(data);
+  if(role==='cliente') renderMenu();
+  if(role==='tracking') renderTracking(data);
+  if(role==='owner' && !hayInputActivoEn('ownerScreen')) renderOwner(data);
+  if(role==='rider' && !hayInputActivoEn('riderScreen')) renderRider(data);
+}
+
+// Tiempo real: en vez de esperar a la próxima revisión periódica, Supabase
+// avisa al instante cuando algo cambia en pedidos/menú/cuentas (cualquier
+// dispositivo conectado), así que la pantalla se actualiza de inmediato.
+function iniciarTiempoReal(){
+  sb.channel('avenida-cambios')
+    .on('postgres_changes', { event:'*', schema:'public', table:'pedidos' }, renderCurrent)
+    .on('postgres_changes', { event:'*', schema:'public', table:'menu' }, renderCurrent)
+    .on('postgres_changes', { event:'*', schema:'public', table:'cuentas' }, renderCurrent)
+    .on('postgres_changes', { event:'*', schema:'public', table:'repartidores' }, renderCurrent)
+    .subscribe();
+}
+
+// Mantiene duenoAutenticado sincronizado con la sesión real de Supabase Auth
+// (persiste entre visitas — no hay que iniciar sesión cada vez).
+sb.auth.getSession().then(({ data: { session } }) => {
+  duenoAutenticado = !!session;
+  if(role==='owner') renderCurrent();
+});
+sb.auth.onAuthStateChange((_event, session) => {
+  duenoAutenticado = !!session;
+  if(role==='owner') renderCurrent();
+});
+
+setMenuCategoria(menuCategoria);
+setEntrega('delivery');
+setPayMethod('efectivo');
+actualizarFechaHoy();
+setInterval(actualizarFechaHoy, 60000);
+if(myOrderIds.length>0) setRole('tracking'); else setRole('cliente');
+iniciarTiempoReal();
+// Revisión de respaldo por si la conexión de tiempo real se cae un momento.
+setInterval(renderCurrent, 15000);
+if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
+</script>
+</body>
+</html>
