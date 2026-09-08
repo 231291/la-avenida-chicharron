@@ -228,7 +228,7 @@
       </div>
       <div class="hours">⏰ 9:00 AM – 7:00 PM</div>
     </div>
-    <p class="address">Menú de domingos · Ave. Pedro A. Rivera, al lado de Induveca, La Vega</p>
+    <p class="address">Menú de lunes a domingo · Ave. Pedro A. Rivera, al lado de Induveca, La Vega</p>
     <p class="fecha-hoy" id="fechaHoy"></p>
     <div class="role-toggle">
       <button id="btnCliente" class="active" onclick="irACliente()">Cliente</button>
@@ -1026,23 +1026,61 @@ function ownerTabsHtml(){
     <button onclick="borrarTodasLasPruebas()">🗑️ Borrar todo</button>
     <button onclick="cerrarAccesoStaff()">🔒 Cerrar acceso</button>
   </div>
-  ${notifBannerHtml()}` + (showNewOrderFlash ? `<div class="new-order-flash">🔔 ¡Nuevo pedido recibido!</div>` : '');
+  ${notifBannerHtml('dueno')}` + (showNewOrderFlash ? `<div class="new-order-flash">🔔 ¡Nuevo pedido recibido!</div>` : '');
 }
-function notifBannerHtml(){
+function notifBannerHtml(rol){
   if(typeof Notification==='undefined') return '';
   if(notifPermiso==='granted'){
-    return `<div style="font-size:11px;color:#3ac97a;font-weight:600;margin-bottom:10px;">🔔 Notificaciones activadas — te avisamos aunque tengas otra app abierta.</div>`;
+    return `<div style="font-size:11px;color:#3ac97a;font-weight:600;margin-bottom:10px;">🔔 Notificaciones activadas — te avisamos aunque tengas la app cerrada o el celular bloqueado.</div>`;
   }
   if(notifPermiso==='denied'){
     return `<div style="font-size:11px;color:#8a7a67;margin-bottom:10px;">🔕 Bloqueaste las notificaciones — actívalas desde los ajustes del navegador si quieres recibir avisos.</div>`;
   }
-  return `<button class="btn-block orange" style="margin-bottom:10px;" onclick="activarNotificaciones()">🔔 Activar notificaciones de nuevos pedidos</button>`;
+  return `<button class="btn-block orange" style="margin-bottom:10px;" onclick="activarNotificaciones('${rol}')">🔔 Activar notificaciones de nuevos pedidos</button>`;
 }
-async function activarNotificaciones(){
+// La llave pública VAPID identifica este servidor de avisos ante el
+// navegador — es pública a propósito, la privada nunca sale de Supabase.
+const VAPID_PUBLIC_KEY = "BH38nREOXh8LsjfaQB_2XHBOXDZhQGvtii3SWNPkRpxl0fCcINUVoBWDNiMv_lVvHJPCmb4aPJthChD_bkBJuQc";
+function urlBase64ToUint8Array(base64String){
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+}
+async function activarNotificaciones(rol){
   if(typeof Notification==='undefined'){ alert('Tu navegador no soporta notificaciones.'); return; }
   const permiso = await Notification.requestPermission();
   notifPermiso = permiso;
+  if(permiso==='granted'){ await suscribirPush(rol); }
   renderCurrent();
+}
+// Registra este dispositivo para recibir avisos aunque la app esté cerrada
+// del todo — se guarda en Supabase y un servidor (Edge Function) le manda
+// el aviso directo al navegador cuando llega/asignan un pedido.
+async function suscribirPush(rol){
+  try{
+    if(!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    const registro = await navigator.serviceWorker.ready;
+    let sub = await registro.pushManager.getSubscription();
+    if(!sub){
+      sub = await registro.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      });
+    }
+    const json = sub.toJSON();
+    const row = {
+      id: sub.endpoint,
+      role: rol,
+      repartidor_nombre: rol==='repartidor' ? riderName : null,
+      endpoint: sub.endpoint,
+      p256dh: json.keys.p256dh,
+      auth: json.keys.auth,
+      created_at: Date.now()
+    };
+    const { error } = await sb.from('push_subscriptions').upsert(row);
+    if(error) console.error('No se pudo guardar la suscripción push', error);
+  }catch(e){ console.error('No se pudo activar el push', e); }
 }
 function renderDuenoLogin(){
   const el = document.getElementById('ownerScreen');
@@ -1433,7 +1471,7 @@ function renderRider(data){
       <button class="btn-block wine" style="width:auto;margin-top:0;padding:8px 12px;" onclick="cambiarRepartidor()">Cambiar</button>
     </div>
     <div class="staff-actions"><button onclick="cerrarAccesoStaff()">🔒 Cerrar acceso</button></div>
-    ${notifBannerHtml()}` +
+    ${notifBannerHtml('repartidor')}` +
     (mine.length===0 ? '<div class="empty">No tienes entregas asignadas ahora mismo.</div>' : mine.map(o=>`
       <div class="order-card">
         <b>${esc(o.custName)}</b>
