@@ -383,6 +383,7 @@ let myOrderIds = [];
 try { myOrderIds = JSON.parse(localStorage.getItem('avenida_mis_pedidos') || '[]'); } catch(e) { myOrderIds = []; }
 let riderName = (localStorage.getItem('avenida_repartidor_ok')==='1') ? (localStorage.getItem('avenida_repartidor_nombre')||'') : "";
 let knownOrderIds = null;
+let knownRiderOrderIds = null;
 let showNewOrderFlash = false;
 
 function money(n) { return "RD$" + (n||0).toLocaleString("es-DO"); }
@@ -703,6 +704,7 @@ async function entrarComoRepartidor(){
   const rep = (data.repartidores||[]).find(r=>r.pin===pin && r.activo!==false);
   if(!rep){ alert('PIN incorrecto.'); return; }
   riderName = rep.nombre;
+  knownRiderOrderIds = null;
   localStorage.setItem('avenida_repartidor_ok','1');
   localStorage.setItem('avenida_repartidor_nombre', rep.nombre);
   setRole('rider');
@@ -1100,6 +1102,31 @@ function notificarPedidoNuevo(o){
     n.onclick = () => { window.focus(); n.close(); };
   }catch(e){ console.error('No se pudo mostrar la notificación', e); }
 }
+// Igual que checkNewOrders, pero del lado del repartidor: avisa cuando le
+// asignan una entrega nueva (mismo permiso de notificaciones, compartido).
+function checkNewRiderAssignments(data){
+  if(!riderName) return;
+  const mias = data.orders.filter(o=>normalizarNombre(o.rider)===normalizarNombre(riderName) && o.status==='en_camino');
+  if(knownRiderOrderIds===null){ knownRiderOrderIds = new Set(mias.map(o=>o.id)); return; }
+  const nuevas = [];
+  mias.forEach(o=>{ if(!knownRiderOrderIds.has(o.id)){ nuevas.push(o); knownRiderOrderIds.add(o.id); } });
+  if(nuevas.length>0){
+    playBeep();
+    nuevas.forEach(notificarEntregaAsignada);
+  }
+}
+function notificarEntregaAsignada(o){
+  if(typeof Notification==='undefined' || Notification.permission!=='granted') return;
+  try{
+    const n = new Notification('🛵 Nueva entrega asignada', {
+      body: `${o.custName} · ${money(o.total)} · ${o.addr||'Ver dirección en la app'}`,
+      icon: 'icon-192.png',
+      badge: 'icon-192.png',
+      tag: 'entrega-'+o.id
+    });
+    n.onclick = () => { window.focus(); n.close(); };
+  }catch(e){ console.error('No se pudo mostrar la notificación', e); }
+}
 function renderOwner(data){
   if(!duenoAutenticado){ renderDuenoLogin(); return; }
   if(ownerTab==='ingresos') renderOwnerIngresos(data);
@@ -1397,7 +1424,7 @@ function renderRider(data){
   }
   const mine = data.orders.filter(o=>normalizarNombre(o.rider)===normalizarNombre(riderName) && o.status==='en_camino');
   // Igual que en Pedidos: si nada cambió, no se reconstruye (evita que el mapa parpadee).
-  const snapshot = riderName + '|' + JSON.stringify(mine);
+  const snapshot = riderName + '|' + JSON.stringify(mine) + '|' + notifPermiso;
   if(el.dataset.vista==='repartidor' && el.dataset.snapshot===snapshot) return;
   el.dataset.vista='repartidor';
   el.dataset.snapshot=snapshot;
@@ -1405,7 +1432,8 @@ function renderRider(data){
       <span>Repartidor: <b>${esc(riderName)}</b></span>
       <button class="btn-block wine" style="width:auto;margin-top:0;padding:8px 12px;" onclick="cambiarRepartidor()">Cambiar</button>
     </div>
-    <div class="staff-actions"><button onclick="cerrarAccesoStaff()">🔒 Cerrar acceso</button></div>` +
+    <div class="staff-actions"><button onclick="cerrarAccesoStaff()">🔒 Cerrar acceso</button></div>
+    ${notifBannerHtml()}` +
     (mine.length===0 ? '<div class="empty">No tienes entregas asignadas ahora mismo.</div>' : mine.map(o=>`
       <div class="order-card">
         <b>${esc(o.custName)}</b>
@@ -1450,6 +1478,7 @@ async function renderCurrent(){
   if(data.menu && data.menu.length){ MENU = data.menu; }
   if(data.cuentas && data.cuentas.length){ CUENTAS_TRANSFERENCIA = data.cuentas; }
   if(role==='owner') checkNewOrders(data);
+  if(role==='rider') checkNewRiderAssignments(data);
   if(role==='cliente') renderMenu();
   if(role==='tracking') renderTracking(data);
   if(role==='owner' && !hayInputActivoEn('ownerScreen')) renderOwner(data);
