@@ -423,7 +423,7 @@ function sugerirEtiqueta(nombre){
     [/mofongo|mangu|platano/, '🍌 Con plátano'],
     [/ensalada|vegetal|vegetarian/, '🥗 Vegetariano'],
     [/sopa|caldo|sancocho/, '🍲 Calientito'],
-    [/jugo|bebida|refresco|morir sonando/, '🥤 Para acompañar'],
+    [/jugo|bebida|refresco|agua|soda|dasani|malta|cerveza|cola\b|gaseosa|limonada|morir sonando/, '🥤 Para acompañar'],
     [/postre|dulce|flan/, '🍮 Dulce'],
   ];
   for(const [regex, tag] of reglas){ if(regex.test(n)) return tag; }
@@ -435,6 +435,21 @@ function sugerirEtiquetaAuto(){
   if(tagInput.value.trim()==='' || tagInput.dataset.auto==='1'){
     tagInput.value = sugerirEtiqueta(document.getElementById('nuevo_nombre').value);
     tagInput.dataset.auto = '1';
+  }
+}
+// El ícono solo distingue "para tomar" de "plato de comida" — todo lo
+// demás (pollo, cerdo, arroz, etc.) se queda con el plato genérico.
+function sugerirEmoji(nombre){
+  const n = normalizarNombre(nombre);
+  if(/jugo|bebida|refresco|agua|soda|dasani|malta|cerveza|cola\b|gaseosa|limonada|morir sonando/.test(n)) return '🥤';
+  return '🍽️';
+}
+function sugerirEmojiAuto(){
+  const emojiInput = document.getElementById('nuevo_emoji');
+  if(!emojiInput) return;
+  if(emojiInput.value.trim()==='' || emojiInput.dataset.auto==='1'){
+    emojiInput.value = sugerirEmoji(document.getElementById('nuevo_nombre').value);
+    emojiInput.dataset.auto = '1';
   }
 }
 
@@ -1264,8 +1279,8 @@ function renderOwnerMenu(data){
       <h3 style="font-size:14px;margin-bottom:2px;">➕ Agregar plato nuevo</h3>
       <p style="font-size:11px;color:#8a7a67;margin-bottom:10px;">Se agrega a "${ownerMenuCategoria==='domingo'?'Domingos':'Entre semana'}" — cambia de pestaña arriba si querías la otra.</p>
       <div style="display:flex;gap:8px;margin-bottom:8px;">
-        <input class="field-input" style="width:52px;text-align:center;margin-bottom:0;" id="nuevo_emoji" placeholder="🍽️">
-        <input class="field-input" style="flex:1;margin-bottom:0;" id="nuevo_nombre" placeholder="Nombre del plato" oninput="sugerirEtiquetaAuto()">
+        <input class="field-input" style="width:52px;text-align:center;margin-bottom:0;" id="nuevo_emoji" placeholder="🍽️" oninput="this.dataset.auto=''">
+        <input class="field-input" style="flex:1;margin-bottom:0;" id="nuevo_nombre" placeholder="Nombre del plato" oninput="sugerirEtiquetaAuto();sugerirEmojiAuto()">
       </div>
       <input class="field-input" id="nuevo_tag" placeholder="Etiqueta (se sugiere sola según el nombre)" oninput="this.dataset.auto=''">
       <div style="display:flex;gap:8px;">
