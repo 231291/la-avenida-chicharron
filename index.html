@@ -792,6 +792,20 @@ function waLink(phone, text){
   const conCodigo = digitos.length===10 ? '1'+digitos : digitos;
   return `https://wa.me/${conCodigo}?text=${encodeURIComponent(text||'')}`;
 }
+// Arma un link de Google Maps con todas las entregas como una sola ruta —
+// Google decide el orden más eficiente (optimize:true) usando tráfico real,
+// mucho mejor que cualquier cálculo que hagamos aquí nosotros mismos.
+function construirRutaCompleta(pedidos){
+  const puntos = pedidos
+    .map(o => o.location ? `${o.location.lat},${o.location.lng}` : (o.addr ? encodeURIComponent(o.addr) : null))
+    .filter(Boolean);
+  if(puntos.length===0) return null;
+  const destino = puntos[puntos.length-1];
+  const paradas = puntos.slice(0, -1);
+  let url = `https://www.google.com/maps/dir/?api=1&destination=${destino}&travelmode=driving`;
+  if(paradas.length>0){ url += `&waypoints=optimize:true|${paradas.join('|')}`; }
+  return url;
+}
 function resumenItems(o){ return o.items.map(i=>`${i.cantidad} ${i.nombre}`).join(', '); }
 function vueltoFor(o){ if(!o.pagaCon) return null; return Math.max(0, o.pagaCon - o.total); }
 function waMsg(o, status){
@@ -1486,7 +1500,8 @@ function renderRider(data){
       <button class="btn-block wine" style="width:auto;margin-top:0;padding:8px 12px;" onclick="cambiarRepartidor()">Cambiar</button>
     </div>
     <div class="staff-actions"><button onclick="cerrarAccesoStaff()">🔒 Cerrar acceso</button></div>
-    ${notifBannerHtml('repartidor')}` +
+    ${notifBannerHtml('repartidor')}
+    ${mine.length>1 ? `<a class="btn-block orange" href="${esc(construirRutaCompleta(mine))}" target="_blank">🗺️ Ver ruta completa (${mine.length} entregas)</a>` : ''}` +
     (mine.length===0 ? '<div class="empty">No tienes entregas asignadas ahora mismo.</div>' : mine.map(o=>`
       <div class="order-card">
         <b>${esc(o.custName)}</b>
