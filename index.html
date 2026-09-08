@@ -357,6 +357,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // Los repartidores entran con su propio PIN (tabla "repartidores",
 // editable desde la pestaña "Repartidores" del panel del Dueño).
 let duenoAutenticado = false;
+let notifPermiso = (typeof Notification!=='undefined') ? Notification.permission : 'unsupported';
 
 // Cuentas bancarias que se le muestran al cliente cuando elige "Transferencia".
 // Esto es solo el valor de arranque — el Dueño las edita desde la pestaña
@@ -1022,7 +1023,24 @@ function ownerTabsHtml(){
   <div class="staff-actions">
     <button onclick="borrarTodasLasPruebas()">🗑️ Borrar todo</button>
     <button onclick="cerrarAccesoStaff()">🔒 Cerrar acceso</button>
-  </div>` + (showNewOrderFlash ? `<div class="new-order-flash">🔔 ¡Nuevo pedido recibido!</div>` : '');
+  </div>
+  ${notifBannerHtml()}` + (showNewOrderFlash ? `<div class="new-order-flash">🔔 ¡Nuevo pedido recibido!</div>` : '');
+}
+function notifBannerHtml(){
+  if(typeof Notification==='undefined') return '';
+  if(notifPermiso==='granted'){
+    return `<div style="font-size:11px;color:#3ac97a;font-weight:600;margin-bottom:10px;">🔔 Notificaciones activadas — te avisamos aunque tengas otra app abierta.</div>`;
+  }
+  if(notifPermiso==='denied'){
+    return `<div style="font-size:11px;color:#8a7a67;margin-bottom:10px;">🔕 Bloqueaste las notificaciones — actívalas desde los ajustes del navegador si quieres recibir avisos.</div>`;
+  }
+  return `<button class="btn-block orange" style="margin-bottom:10px;" onclick="activarNotificaciones()">🔔 Activar notificaciones de nuevos pedidos</button>`;
+}
+async function activarNotificaciones(){
+  if(typeof Notification==='undefined'){ alert('Tu navegador no soporta notificaciones.'); return; }
+  const permiso = await Notification.requestPermission();
+  notifPermiso = permiso;
+  renderCurrent();
 }
 function renderDuenoLogin(){
   const el = document.getElementById('ownerScreen');
@@ -1059,13 +1077,28 @@ function playBeep(){
 }
 function checkNewOrders(data){
   if(knownOrderIds===null){ knownOrderIds = new Set(data.orders.map(o=>o.id)); return; }
-  let hayNuevo=false;
-  data.orders.forEach(o=>{ if(!knownOrderIds.has(o.id)){ hayNuevo=true; knownOrderIds.add(o.id); } });
-  if(hayNuevo){
+  const nuevos = [];
+  data.orders.forEach(o=>{ if(!knownOrderIds.has(o.id)){ nuevos.push(o); knownOrderIds.add(o.id); } });
+  if(nuevos.length>0){
     showNewOrderFlash = true;
     playBeep();
+    nuevos.forEach(notificarPedidoNuevo);
     setTimeout(()=>{ showNewOrderFlash=false; if(role==='owner') renderCurrent(); }, 4000);
   }
+}
+// Notificación real del sistema (suena/vibra aunque el Dueño esté en otra
+// app) — solo si ya dio permiso; si no, se queda con el sonido+aviso en pantalla.
+function notificarPedidoNuevo(o){
+  if(typeof Notification==='undefined' || Notification.permission!=='granted') return;
+  try{
+    const n = new Notification('🔔 Nuevo pedido — La Avenida Chicharrón', {
+      body: `${o.custName} · ${money(o.total)} · ${o.deliveryType==='delivery' ? 'Delivery' : 'Recoger'}`,
+      icon: 'icon-192.png',
+      badge: 'icon-192.png',
+      tag: 'pedido-'+o.id
+    });
+    n.onclick = () => { window.focus(); n.close(); };
+  }catch(e){ console.error('No se pudo mostrar la notificación', e); }
 }
 function renderOwner(data){
   if(!duenoAutenticado){ renderDuenoLogin(); return; }
@@ -1221,7 +1254,7 @@ function renderOwnerPedidos(data){
   const activos = data.orders.filter(o=>o.status!=='entregado'&&o.status!=='cancelado').sort((a,b)=>a.createdAt-b.createdAt);
   // Si nada cambió desde el último refresco, no se reconstruye la pantalla —
   // así el mapa embebido no se recarga y "parpadea" cada 2.5 segundos.
-  const snapshot = JSON.stringify(activos) + '|' + showNewOrderFlash;
+  const snapshot = JSON.stringify(activos) + '|' + showNewOrderFlash + '|' + notifPermiso;
   if(el.dataset.vista==='pedidos' && el.dataset.snapshot===snapshot) return;
   el.dataset.vista='pedidos';
   el.dataset.snapshot=snapshot;
