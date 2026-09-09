@@ -1108,9 +1108,8 @@ async function suscribirPush(rol){
       created_at: Date.now()
     };
     const { error } = await sb.from('push_subscriptions').upsert(row);
-    if(error){ console.error('No se pudo guardar la suscripción push', error); alert('Error guardando suscripción: ' + (error.message||JSON.stringify(error))); }
-    else{ alert('Suscripción guardada correctamente.'); }
-  }catch(e){ console.error('No se pudo activar el push', e); alert('Error activando push: ' + (e && e.message ? e.message : e)); }
+    if(error) console.error('No se pudo guardar la suscripción push', error);
+  }catch(e){ console.error('No se pudo activar el push', e); }
 }
 function renderDuenoLogin(){
   const el = document.getElementById('ownerScreen');
