@@ -358,6 +358,10 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // editable desde la pestaña "Repartidores" del panel del Dueño).
 let duenoAutenticado = false;
 let notifPermiso = (typeof Notification!=='undefined') ? Notification.permission : 'unsupported';
+// Roles para los que ya intentamos re-confirmar la suscripción push en esta
+// carga de página — evita re-guardarla en cada re-render (cada 15s / cambio
+// en tiempo real). Se resetea solo al recargar la página.
+let notifAutoConfirmado = {};
 
 // Cuentas bancarias que se le muestran al cliente cuando elige "Transferencia".
 // Esto es solo el valor de arranque — el Dueño las edita desde la pestaña
@@ -1060,6 +1064,11 @@ function ownerTabsHtml(){
 function notifBannerHtml(rol){
   if(typeof Notification==='undefined') return '';
   if(notifPermiso==='granted'){
+    // Auto-sanación: cada vez que se abre esta pantalla, re-confirma en
+    // silencio que la suscripción sigue guardada en Supabase — así, si se
+    // borró sola (dispositivo inválido, cambio de rol en el mismo celular,
+    // etc.) se repara sin que nadie tenga que darse cuenta ni tocar nada.
+    if(!notifAutoConfirmado[rol]){ notifAutoConfirmado[rol] = true; suscribirPush(rol); }
     return `<div style="font-size:11px;color:#3ac97a;font-weight:600;margin-bottom:6px;">🔔 Notificaciones activadas — te avisamos aunque tengas la app cerrada o el celular bloqueado.</div><div style="margin-bottom:10px;"><a href="#" onclick="activarNotificaciones('${rol}');return false;" style="font-size:11px;color:#8a7a67;text-decoration:underline;">🔁 Reintentar registro (por si no te llegan avisos)</a></div>`;
   }
   if(notifPermiso==='denied'){
