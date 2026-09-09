@@ -1060,7 +1060,7 @@ function ownerTabsHtml(){
 function notifBannerHtml(rol){
   if(typeof Notification==='undefined') return '';
   if(notifPermiso==='granted'){
-    return `<div style="font-size:11px;color:#3ac97a;font-weight:600;margin-bottom:10px;">🔔 Notificaciones activadas — te avisamos aunque tengas la app cerrada o el celular bloqueado.</div>`;
+    return `<div style="font-size:11px;color:#3ac97a;font-weight:600;margin-bottom:6px;">🔔 Notificaciones activadas — te avisamos aunque tengas la app cerrada o el celular bloqueado.</div><div style="margin-bottom:10px;"><a href="#" onclick="activarNotificaciones('${rol}');return false;" style="font-size:11px;color:#8a7a67;text-decoration:underline;">🔁 Reintentar registro (por si no te llegan avisos)</a></div>`;
   }
   if(notifPermiso==='denied'){
     return `<div style="font-size:11px;color:#8a7a67;margin-bottom:10px;">🔕 Bloqueaste las notificaciones — actívalas desde los ajustes del navegador si quieres recibir avisos.</div>`;
