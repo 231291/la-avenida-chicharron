@@ -1648,17 +1648,36 @@ function iniciarTiempoReal(){
     .subscribe();
 }
 
+// Los botones de "Dueño" y "Repartidor" están ocultos para el público —
+// un cliente cualquiera solo ve "Cliente". Se revelan solo en el celular
+// del staff, entrando una vez con el link secreto (?staff=1); de ahí en
+// adelante quedan visibles en ESE celular para siempre (localStorage).
+function actualizarVisibilidadStaff(){
+  const params = new URLSearchParams(location.search);
+  if(params.get('staff')==='1'){ localStorage.setItem('avenida_staff_visible','1'); }
+  const esStaff = localStorage.getItem('avenida_staff_visible')==='1'
+    || localStorage.getItem('avenida_repartidor_ok')==='1'
+    || duenoAutenticado;
+  document.getElementById('btnDueno').style.display = esStaff ? '' : 'none';
+  document.getElementById('btnRepartidor').style.display = esStaff ? '' : 'none';
+}
+
 // Mantiene duenoAutenticado sincronizado con la sesión real de Supabase Auth
 // (persiste entre visitas — no hay que iniciar sesión cada vez).
 sb.auth.getSession().then(({ data: { session } }) => {
   duenoAutenticado = !!session;
+  if(duenoAutenticado) localStorage.setItem('avenida_staff_visible','1');
+  actualizarVisibilidadStaff();
   if(role==='owner') renderCurrent();
 });
 sb.auth.onAuthStateChange((_event, session) => {
   duenoAutenticado = !!session;
+  if(duenoAutenticado) localStorage.setItem('avenida_staff_visible','1');
+  actualizarVisibilidadStaff();
   if(role==='owner') renderCurrent();
 });
 
+actualizarVisibilidadStaff();
 setMenuCategoria(menuCategoria);
 setEntrega('delivery');
 setPayMethod('efectivo');
