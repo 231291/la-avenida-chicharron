@@ -488,7 +488,7 @@ function orderToRow(o){
   };
 }
 function rowToMenuItem(r){
-  return { id:r.id, nombre:r.nombre, tag:r.tag||'', precio:Number(r.precio)||0, unidad:r.unidad||'', emoji:r.emoji||'', activo: r.activo !== false, categoria: r.categoria || 'domingo' };
+  return { id:r.id, nombre:r.nombre, tag:r.tag||'', precio:Number(r.precio)||0, unidad:r.unidad||'', emoji:r.emoji||'', activo: r.activo !== false, categoria: r.categoria || 'domingo', foto_url: r.foto_url||null };
 }
 function rowToCuenta(r){
   return { id:r.id, banco:r.banco, tipoCuenta:r.tipo_cuenta||'', numeroCuenta:String(r.numero_cuenta||''), titular:r.titular||'', cedula:r.cedula||'' };
