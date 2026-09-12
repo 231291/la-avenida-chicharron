@@ -71,15 +71,18 @@
     display: flex; align-items: center; gap: 12px; transition: all 220ms ease;
   }
   .item-card.has-qty { border-color: #7a1414; }
-  .item-emoji {
-    background: #2a2119; border-radius: 12px; width: 56px; height: 56px; font-size: 26px;
-    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-  }
   .item-info { flex: 1; min-width: 0; }
   .item-name { font-size: 15px; font-weight: 700; }
   .item-tag { font-size: 11px; color: #e8901f; font-weight: 600; margin-top: 1px; }
   .item-price { font-size: 13px; font-weight: 700; color: #c9b8a0; margin-top: 5px; }
   .item-price span { font-weight: 400; color: #6f6153; }
+  .item-photo-wrap { position: relative; flex-shrink: 0; width: 88px; height: 88px; }
+  .item-photo { width: 88px; height: 88px; border-radius: 14px; object-fit: cover; display: block; }
+  .item-emoji {
+    background: #2a2119; border-radius: 14px; width: 88px; height: 88px; font-size: 32px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .item-ctrl-float { position: absolute; right: -6px; bottom: -6px; filter: drop-shadow(0 2px 6px rgba(0,0,0,.45)); }
 
   .add-btn {
     background: #7a1414; color: #f3e7d6; border-radius: 999px; padding: 9px 16px; font-size: 13px; font-weight: 600;
@@ -562,7 +565,7 @@ async function agregarRepartidorNuevo(){
 
 /* ---------- Menú (CRUD del Dueño) ---------- */
 async function pushCreateItem(item){
-  const row = { id:item.id, nombre:item.nombre, tag:item.tag||'', precio:item.precio, unidad:item.unidad||'', emoji:item.emoji||'', activo:item.activo!==false, categoria:item.categoria||'domingo' };
+  const row = { id:item.id, nombre:item.nombre, tag:item.tag||'', precio:item.precio, unidad:item.unidad||'', emoji:item.emoji||'', activo:item.activo!==false, categoria:item.categoria||'domingo', foto_url:item.foto_url||null };
   const { error } = await sb.from('menu').insert(row);
   if(error) console.error('No se pudo crear el plato', error);
 }
@@ -575,6 +578,7 @@ async function pushUpdateItem(id, patch){
   if(patch.emoji!==undefined) row.emoji = patch.emoji;
   if(patch.activo!==undefined) row.activo = patch.activo;
   if(patch.categoria!==undefined) row.categoria = patch.categoria;
+  if(patch.foto_url!==undefined) row.foto_url = patch.foto_url;
   const { error } = await sb.from('menu').update(row).eq('id', id);
   if(error) console.error('No se pudo actualizar el plato', error);
 }
@@ -601,6 +605,59 @@ async function eliminarArticulo(id, nombre){
   await pushDeleteItem(id);
   renderCurrent();
 }
+// Redimensiona una foto de plato a un ancho razonable antes de subirla —
+// se usa tanto para platos nuevos (se guarda en memoria hasta que se
+// confirma el plato) como para reemplazar la foto de un plato existente
+// (se sube y se guarda de inmediato, sin esperar a un botón "Guardar").
+function redimensionarFoto(dataUrl){
+  return new Promise((resolve)=>{
+    const img = new Image();
+    img.onload = function(){
+      const maxAncho = 800;
+      const escala = Math.min(1, maxAncho / img.width);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * escala);
+      canvas.height = Math.round(img.height * escala);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', 0.75));
+    };
+    img.src = dataUrl;
+  });
+}
+async function subirFotoPlato(base64DataUrl, nombreArchivo){
+  try{
+    const res = await fetch(base64DataUrl);
+    const blob = await res.blob();
+    const { error } = await sb.storage.from('platos').upload(nombreArchivo, blob, { contentType:'image/jpeg', upsert:true });
+    if(error){ console.error('No se pudo subir la foto del plato', error); return null; }
+    const { data } = sb.storage.from('platos').getPublicUrl(nombreArchivo);
+    return data.publicUrl;
+  }catch(e){ console.error('No se pudo subir la foto del plato', e); return null; }
+}
+let nuevoPlatoFotoBase64 = null;
+function onNuevoPlatoFotoChange(e){
+  const file = e.target.files[0];
+  const preview = document.getElementById('nuevoPlatoFotoPreview');
+  if(!file){ nuevoPlatoFotoBase64 = null; preview.innerHTML=''; return; }
+  const reader = new FileReader();
+  reader.onload = async function(ev){
+    nuevoPlatoFotoBase64 = await redimensionarFoto(ev.target.result);
+    preview.innerHTML = `<img src="${nuevoPlatoFotoBase64}" style="width:70px;height:70px;object-fit:cover;border-radius:10px;border:1px solid #2c241d;display:block;">`;
+  };
+  reader.readAsDataURL(file);
+}
+async function onArtFotoChange(e, id){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = async function(ev){
+    const foto = await redimensionarFoto(ev.target.result);
+    const url = await subirFotoPlato(foto, 'plato_'+id+'_'+Date.now()+'.jpg');
+    if(url){ await pushUpdateItem(id, {foto_url: url}); renderCurrent(); }
+    else{ alert('No se pudo subir la foto, intenta de nuevo.'); }
+  };
+  reader.readAsDataURL(file);
+}
 async function agregarArticuloNuevo(){
   const nombre = document.getElementById('nuevo_nombre').value.trim();
   const tag = document.getElementById('nuevo_tag').value.trim();
@@ -609,12 +666,17 @@ async function agregarArticuloNuevo(){
   const emoji = document.getElementById('nuevo_emoji').value.trim() || '🍽️';
   if(!nombre || !precio || precio<=0){ alert('Escribe un nombre y un precio válido para el plato nuevo.'); return; }
   const id = 'art_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
-  await pushCreateItem({id, nombre, tag: tag || sugerirEtiqueta(nombre), precio, unidad, emoji, activo:true, categoria: ownerMenuCategoria});
+  let foto_url = null;
+  if(nuevoPlatoFotoBase64){ foto_url = await subirFotoPlato(nuevoPlatoFotoBase64, 'plato_'+id+'.jpg'); }
+  await pushCreateItem({id, nombre, tag: tag || sugerirEtiqueta(nombre), precio, unidad, emoji, activo:true, categoria: ownerMenuCategoria, foto_url});
   document.getElementById('nuevo_nombre').value='';
   document.getElementById('nuevo_tag').value='';
   document.getElementById('nuevo_precio').value='';
   document.getElementById('nuevo_unidad').value='';
   document.getElementById('nuevo_emoji').value='';
+  document.getElementById('nuevo_foto').value='';
+  document.getElementById('nuevoPlatoFotoPreview').innerHTML='';
+  nuevoPlatoFotoBase64 = null;
   renderCurrent();
 }
 
@@ -849,13 +911,15 @@ function renderMenu() {
     card.className = "item-card" + (q > 0 ? " has-qty" : "");
     card.id = "card-" + item.id;
     card.innerHTML = `
-      <div class="item-emoji">${esc(item.emoji)}</div>
       <div class="item-info">
         <div class="item-name">${esc(item.nombre)}</div>
         <div class="item-tag">${esc(item.tag)}</div>
         <div class="item-price">${money(item.precio)} <span>${esc(item.unidad)}</span></div>
       </div>
-      <div id="ctrl-${esc(item.id)}"></div>
+      <div class="item-photo-wrap">
+        ${item.foto_url ? `<img class="item-photo" src="${esc(item.foto_url)}" alt="${esc(item.nombre)}">` : `<div class="item-emoji">${esc(item.emoji)}</div>`}
+        <div id="ctrl-${esc(item.id)}" class="item-ctrl-float"></div>
+      </div>
     `;
     list.appendChild(card);
     renderCtrl(item.id);
@@ -1281,6 +1345,12 @@ function renderOwnerMenu(data){
   </div>`;
   const listaHtml = items.length===0 ? '<div class="empty">Aún no hay platos en esta categoría — agrega el primero abajo.</div>' : items.map(m=>`
     <div class="order-card">
+      <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;">
+        ${m.foto_url ? `<img src="${esc(m.foto_url)}" style="width:48px;height:48px;border-radius:10px;object-fit:cover;flex-shrink:0;">` : `<div style="width:48px;height:48px;border-radius:10px;background:#2a2119;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;">${esc(m.emoji)}</div>`}
+        <label style="flex:1;font-size:11px;color:#8a7a67;">📷 Cambiar foto del plato
+          <input type="file" accept="image/*" style="display:block;margin-top:4px;" onchange="onArtFotoChange(event,'${escJs(m.id)}')">
+        </label>
+      </div>
       <div style="display:flex;gap:8px;margin-bottom:8px;">
         <input class="field-input" style="width:52px;text-align:center;margin-bottom:0;" id="art_emoji_${esc(m.id)}" value="${esc(m.emoji)}">
         <input class="field-input" style="flex:1;margin-bottom:0;" id="art_nombre_${esc(m.id)}" value="${esc(m.nombre)}" placeholder="Nombre">
@@ -1307,6 +1377,9 @@ function renderOwnerMenu(data){
         <input class="field-input" style="flex:1;margin-bottom:0;" id="nuevo_nombre" placeholder="Nombre del plato" oninput="sugerirEtiquetaAuto();sugerirEmojiAuto()">
       </div>
       <input class="field-input" id="nuevo_tag" placeholder="Etiqueta (se sugiere sola según el nombre)" oninput="this.dataset.auto=''">
+      <label class="field-label">Foto del plato (opcional)</label>
+      <input class="field-input" id="nuevo_foto" type="file" accept="image/*" onchange="onNuevoPlatoFotoChange(event)">
+      <div id="nuevoPlatoFotoPreview" style="margin:-8px 0 12px;"></div>
       <div style="display:flex;gap:8px;">
         <input class="field-input" style="flex:1;" type="number" id="nuevo_precio" placeholder="Precio RD$">
         <input class="field-input" style="flex:1;" id="nuevo_unidad" placeholder="Unidad (ej: por plato)">
